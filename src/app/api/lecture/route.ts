@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getLecture, remainingQuestions } from "@/lib/features";
 import { errorResponse, getUid } from "@/lib/http";
 import { isDemoMode } from "@/lib/claude";
+import { readAreaNews } from "@/lib/news";
 
 export const maxDuration = 300;
 
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
       lecture,
       remaining: await remainingQuestions(await getUid(), areaKey),
       demo: isDemoMode(),
+      news: area ? await readAreaNews(area.id) : [],
     });
   } catch (err) {
     return errorResponse(err);

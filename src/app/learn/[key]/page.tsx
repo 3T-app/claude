@@ -7,6 +7,7 @@ import PostCard from "@/components/PostCard";
 import { Card, DemoBanner, ErrorNote, Spinner } from "@/components/ui";
 import type { Area } from "@/lib/areas";
 import type { PublicPost } from "@/lib/posts";
+import type { AreaNewsItem } from "@/lib/news";
 import type { Lecture } from "@/lib/schemas";
 import { zoneColor } from "@/lib/zoneColors";
 
@@ -16,6 +17,7 @@ interface LectureResponse {
   lecture: Lecture;
   remaining: number;
   demo: boolean;
+  news: AreaNewsItem[];
 }
 
 interface ChatMessage {
@@ -236,6 +238,12 @@ function LectureView({
           </ul>
         </Section>
 
+        {data.news.length > 0 && (
+          <Section title="📰 最近の街のニュース">
+            <NewsList items={data.news} />
+          </Section>
+        )}
+
         <Section title="⑦ 昼と夜">
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-background p-2.5">
@@ -294,6 +302,28 @@ function LectureView({
         )}
       </div>
     </div>
+  );
+}
+
+function NewsList({ items }: { items: AreaNewsItem[] }) {
+  return (
+    <ul className="space-y-2.5">
+      {items.map((n) => (
+        <li key={n.url + n.title} className="text-sm leading-relaxed">
+          <span className="mr-1 rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{n.kind}</span>
+          <span className="text-[11px] text-ink-soft">{n.date}</span>
+          <br />
+          <a href={n.url} target="_blank" rel="noreferrer" className="font-bold underline">
+            {n.title}
+          </a>
+          <span className="text-[11px] text-ink-soft">（{n.source}）</span>
+          <br />
+          <span className="text-xs">{n.summary}</span>
+          <br />
+          <span className="text-xs text-ink-soft">商圏への影響：{n.impact}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

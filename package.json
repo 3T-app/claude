@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:analyses": "jiti scripts/check-analyses.ts"
+    "check:analyses": "jiti scripts/check-analyses.ts",
+    "check:news": "jiti scripts/check-news.ts",
+    "news:targets": "jiti scripts/news-targets.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

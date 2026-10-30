@@ -247,6 +247,25 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
 
         <LocalDataCard result={result} />
 
+        {result.areaNews.length > 0 && (
+          <Card>
+            <h3 className="text-sm font-black text-accent">📰 近くの街の最近のニュース</h3>
+            <ul className="mt-2 space-y-2 text-xs leading-relaxed">
+              {result.areaNews.map((n) => (
+                <li key={n.url + n.title}>
+                  <span className="mr-1 rounded bg-foreground px-1 text-[10px] font-bold text-white">{n.kind}</span>
+                  <a href={n.url} target="_blank" rel="noreferrer" className="font-bold underline">
+                    {n.title}
+                  </a>
+                  <span className="text-[10px] text-ink-soft">（{n.date}）</span>
+                  <br />
+                  <span className="text-ink-soft">{n.impact}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         <Card>
           <h3 className="text-sm font-black text-accent">分析レポート</h3>
           <p className="mt-2 text-xs text-ink-soft">{d.storeUnderstanding}</p>
@@ -393,6 +412,24 @@ function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend
                 <span className="mr-1 rounded bg-foreground px-1 text-[10px] text-white">{n.source}</span>
                 {n.text}
                 <span className="text-[10px] text-ink-soft">（{n.createdAt.slice(5, 10).replace("-", "/")}）</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {bundle.buzz.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-bold">📰 ニュースで話題（毎日の巡回）</p>
+          <ul className="mt-1 space-y-1 text-xs leading-relaxed">
+            {bundle.buzz.slice(0, 5).map((b) => (
+              <li key={b.url + b.title}>
+                <a href={b.url} target="_blank" rel="noreferrer" className="underline">
+                  {b.title}
+                </a>
+                <span className="text-[10px] text-ink-soft">（{b.source}・{b.date.slice(5).replace("-", "/")}）</span>
+                <br />
+                <span className="text-ink-soft">{b.why}</span>
               </li>
             ))}
           </ul>

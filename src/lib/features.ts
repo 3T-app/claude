@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { formatAnalysis, loadAnalysisLecture, readAnalysis } from "./analyses";
+import { formatAreaNews, formatBuzz, readAreaNews, readBuzz, type AreaNewsItem, type BuzzItem } from "./news";
 import { AREAS, distanceM, getArea, nearestAreas, type Area } from "./areas";
 import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claude";
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
@@ -164,12 +165,13 @@ async function generateLecture(
   const center = point ? { lat: point.lat, lng: point.lng } : null;
   const radius = area?.category === "terminal" || area?.category === "tama" ? 1000 : 800;
 
-  const [pois, mix, stats, research, prior] = await Promise.all([
+  const [pois, mix, stats, research, prior, news] = await Promise.all([
     center ? safe("osm", poisAround(center.lat, center.lng, radius)) : Promise.resolve(null),
     center ? safe("hotpepper", composition(center.lat, center.lng)) : Promise.resolve(null),
     safe("estat", cityStats(area?.city, point?.label, place)),
     safe("research", researchTown(place, cacheKey)),
     area ? readAnalysis(area.id) : Promise.resolve(null),
+    area ? readAreaNews(area.id, 10) : Promise.resolve([]),
   ]);
 
   const system = await baseSystem(
@@ -183,6 +185,7 @@ async function generateLecture(
     `<地図上の店・施設（OpenStreetMap）>\n${pois ? formatPois(pois, center!) : "（取得できませんでした）"}\n</地図上の店・施設>`,
     mix ? `<飲食店の構成（ホットペッパー）>\n${formatComposition(mix)}\n</飲食店の構成>` : "",
     prior ? `<事前の分析（Claude Code が Web で調べたもの。地図の店データで確かめ、深める）>\n${formatAnalysis(prior)}\n</事前の分析>` : "",
+    news.length ? `<最近の街のニュース（毎日の巡回）>\n${formatAreaNews(news)}\n</最近の街のニュース>` : "",
     `<Web・ニュースの調査>\n${research?.text ?? "（取得できませんでした）"}\n</Web・ニュースの調査>`,
     `<この街のみんなの投稿（AIが読み取った気づき）>\n${formatInsights(insights)}\n</みんなの投稿>`,
     "",
@@ -325,16 +328,18 @@ export interface TrendBundle {
   web: TrendCache;
   youtube: YouTubeVideo[];
   notes: TrendNote[];
+  buzz: BuzzItem[];
 }
 
-/** 流行の材料をまとめて集める：手入れのSNSメモ ＋ YouTube ＋ Web巡回 */
+/** 流行の材料をまとめて集める：手入れのSNSメモ ＋ ニュース巡回 ＋ YouTube ＋ Web巡回 */
 export async function getTrendBundle(genre: string): Promise<TrendBundle> {
-  const [web, youtube, notes] = await Promise.all([
+  const [web, youtube, notes, buzz] = await Promise.all([
     getTrend(genre),
     safe("youtube", youtubeTrends(genre)),
     recentNotes(genre),
+    readBuzz(genre),
   ]);
-  return { web, youtube: youtube ?? [], notes };
+  return { web, youtube: youtube ?? [], notes, buzz };
 }
 
 // ─────────────────────────────────────────────
@@ -351,6 +356,7 @@ export interface DiagnosisResult {
   /** 近くの街の講義（作成済みのとき）の商圏の色分けと、この店から関係先への線 */
   areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
   relationLines: LatLng[][];
+  areaNews: AreaNewsItem[];
   demo: boolean;
 }
 
@@ -361,12 +367,13 @@ export async function diagnose(input: { name: string; address: string; genre: st
 
   // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
   const homeArea = nearby[0] && nearby[0].distance < 2000 ? nearby[0].area : null;
-  const [trend, comp, city, pois, lectureCache] = await Promise.all([
+  const [trend, comp, city, pois, lectureCache, areaNews] = await Promise.all([
     getTrendBundle(input.genre),
     point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
     safe("estat", cityStats(point?.label, input.address)),
     point ? safe("osm", poisAround(point.lat, point.lng, 400)) : Promise.resolve(null),
     homeArea ? cachedLecture(homeArea.id) : Promise.resolve(null),
+    homeArea ? readAreaNews(homeArea.id, 6) : Promise.resolve([]),
   ]);
   // 近くの街の講義がまだなければ、次回のために裏で作っておく（待たない）
   if (homeArea && !lectureCache && !isDemoMode()) void getLecture(homeArea.id).catch(() => undefined);
@@ -390,6 +397,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
       city,
       areaMap,
       relationLines: [],
+      areaNews,
       demo: true,
     };
   }
@@ -432,13 +440,16 @@ export async function diagnose(input: { name: string; address: string; genre: st
     `<周辺の飲食店（ホットペッパー）>\n${formatCompetition(comp, input.genre)}\n</周辺の飲食店>`,
     `<区市の人口・世帯（e-Stat）>\n${formatCityStats(city)}\n</区市の人口・世帯>`,
     `<${input.genre}の流行：運営がX・Instagramなどから手で集めたメモ（最優先で参考にする）>\n${formatNotes(trend.notes)}\n</流行メモ>`,
+    `<${input.genre}の流行：ニュースで話題の食べ物・お店（毎日の巡回）>\n${formatBuzz(trend.buzz)}\n</ニュースで話題>`,
+    areaNews.length ? `<${homeArea!.name}の最近の街のニュース（開業・閉店・再開発など）>\n${formatAreaNews(areaNews)}\n</最近の街のニュース>` : "",
     `<${input.genre}の流行：YouTubeで直近30日に再生が多い動画>\n${formatYouTube(trend.youtube)}\n</YouTube>`,
     `<${input.genre}の流行：Web記事の巡回>\n${trend.web.report}\n</Web記事の巡回>`,
     "",
     `評価軸は必ず ${INDICATORS.join("・")} の5つをこの順で出してください。`,
     "3を「平均的」とし、根拠が乏しい場合は3に寄せ、その旨を caveats に書いてください。",
     "数字のデータ（同業の軒数、一人暮らしの割合、昼夜間人口比など）がある軸は、その数字を reason に必ず引用してください。データがない軸は推定であることを書いてください。",
-    "trendFit とバズるメニューは、流行メモ・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
+    "trendFit とバズるメニューは、流行メモ・ニュース・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
+    "最近の街のニュース（近くの開業・閉店・再開発）は、競合性と接続性の評価に反映してください。",
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
     "運営の「立地調査での使いかた」に沿って、まず zoneFit（どの商圏の中・端・外か）を決め、次に relations（周りの実在の店との補完・集積・価格競争）を書き、その読みを5つの軸の点数の根拠にしてください。",
     "relations の poiIds には、店から半径400m以内の一覧にある id だけを使ってください（作らない）。",
@@ -472,6 +483,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     city,
     areaMap,
     relationLines: point ? relationLines : [],
+    areaNews,
     demo: false,
   };
 }
