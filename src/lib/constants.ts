@@ -27,3 +27,7 @@ export const GENRE_SLUGS = {
 } as const;
 
 export const GENRES = Object.keys(GENRE_SLUGS) as (keyof typeof GENRE_SLUGS)[];
+
+/** 流行メモの入力元と、業態を問わないメモ用の区分 */
+export const NOTE_SOURCES = ["X", "Instagram", "TikTok", "Muse", "その他"] as const;
+export const ALL_GENRES = "全般";

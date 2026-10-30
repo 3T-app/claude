@@ -15,6 +15,7 @@ interface LectureResponse {
   lecture: Lecture;
   remaining: number;
   demo: boolean;
+  credits: { hotpepper: boolean; estat: boolean };
 }
 
 interface ChatMessage {
@@ -173,6 +174,18 @@ function LectureView({
           <h2 className="text-sm font-black text-accent">🚶 商圏を体感する歩き方</h2>
           <p className="mt-2 text-sm leading-relaxed">{lecture.walkRoute}</p>
         </Card>
+
+        {(data.credits.hotpepper || data.credits.estat) && (
+          <p className="text-[10px] leading-relaxed text-ink-soft">
+            講義には次のデータを使っています：
+            {data.credits.hotpepper && (
+              <a href="http://webservice.recruit.co.jp/" target="_blank" rel="noreferrer" className="ml-1 underline">
+                Powered by ホットペッパーグルメ Webサービス
+              </a>
+            )}
+            {data.credits.estat && <span className="ml-1">出典：政府統計の総合窓口(e-Stat)</span>}
+          </p>
+        )}
 
         <ChatBox areaKey={data.areaKey} initialRemaining={data.remaining} placeName={lecture.placeName} />
 

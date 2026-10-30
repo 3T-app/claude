@@ -198,6 +198,8 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
           </ul>
         </Card>
 
+        <LocalDataCard result={result} />
+
         <Card>
           <h3 className="text-sm font-black text-accent">分析レポート</h3>
           <p className="mt-2 text-xs text-ink-soft">{d.storeUnderstanding}</p>
@@ -220,29 +222,7 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
           </div>
         </div>
 
-        <Card>
-          <h3 className="text-sm font-black text-accent">📈 {trend.genre}で今はやっているもの</h3>
-          <p className="mt-1 text-[11px] text-ink-soft">
-            {trend.by === "claude-code" ? "Claude Code の巡回" : trend.by === "api" ? "AIのWeb巡回" : "デモ"}・
-            {new Date(trend.fetchedAt).toLocaleDateString("ja-JP")}時点
-          </p>
-          <p className="mt-2 text-sm leading-relaxed font-bold">{d.trendFit}</p>
-          <details className="mt-3">
-            <summary className="cursor-pointer text-xs font-bold text-ink-soft">巡回したトレンドの全文</summary>
-            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{trend.report}</p>
-            {trend.sources.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {trend.sources.map((s) => (
-                  <li key={s.url}>
-                    <a href={s.url} target="_blank" rel="noreferrer" className="text-[11px] text-accent underline">
-                      {s.title || s.url}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </details>
-        </Card>
+        <TrendCard bundle={trend} genre={trend.web.genre} trendFit={d.trendFit} />
 
         <p className="text-[11px] leading-relaxed text-ink-soft">⚠️ {d.caveats}</p>
 
@@ -257,5 +237,154 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 1000) / 10}%`);
+
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-xl bg-background p-2.5">
+      <p className="text-[11px] text-ink-soft">{label}</p>
+      <p className="text-lg font-black">{value}</p>
+      {note && <p className="text-[10px] text-ink-soft">{note}</p>}
+    </div>
+  );
+}
+
+/** ホットペッパーとe-Statの数字。AIの点数の根拠として並べて見せる */
+function LocalDataCard({ result }: { result: DiagnosisResult }) {
+  const { competition: c, city } = result;
+  if (!c && !city) {
+    return (
+      <p className="text-[11px] leading-relaxed text-ink-soft">
+        周辺の店の数（ホットペッパー）と街の統計（e-Stat）は、APIキーを設定すると表示され、評価の根拠に使われます。
+      </p>
+    );
+  }
+  return (
+    <Card>
+      <h3 className="text-sm font-black">📊 評価の根拠になったデータ</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {c?.genreName && (
+          <>
+            <Stat label={`同業（${c.genreName}）300m以内`} value={`${c.sameGenre300}軒`} note="競合性" />
+            <Stat label="同業 1km以内" value={`${c.sameGenre1000}軒`} note="競合性" />
+          </>
+        )}
+        {c && <Stat label="飲食店 300m以内（全ジャンル）" value={`${c.all300}軒`} note="集積・接続性" />}
+        {city && <Stat label={`一人暮らしの割合（${city.name}）`} value={pct(city.singleRatio)} note="客層の多様性" />}
+        {city && (
+          <Stat
+            label={`昼夜間人口比（${city.name}）`}
+            value={city.dayNightRatio === null ? "—" : String(city.dayNightRatio)}
+            note="消費サイクル：1を超えるほど昼に人が集まる"
+          />
+        )}
+        {city && <Stat label={`65歳以上の割合（${city.name}）`} value={pct(city.elderlyRatio)} note="客層の多様性" />}
+      </div>
+      {c && c.genreMix.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed">
+          <b>500m以内のジャンル構成：</b>
+          {c.genreMix
+            .slice(0, 8)
+            .map((g) => `${g.genre} ${g.count}`)
+            .join("・")}
+        </p>
+      )}
+      {c && c.nearest.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs font-bold text-ink-soft">近くのお店（近い順）</summary>
+          <ul className="mt-1 space-y-0.5 text-[11px]">
+            {c.nearest.map((s) => (
+              <li key={s.name + s.distance}>
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noreferrer" className="underline">
+                    {s.name}
+                  </a>
+                ) : (
+                  s.name
+                )}
+                <span className="text-ink-soft">
+                  {" "}
+                  {s.genre}・{s.distance}m
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <p className="mt-3 text-[10px] text-ink-soft">
+        {c && (
+          <>
+            <a href="http://webservice.recruit.co.jp/" target="_blank" rel="noreferrer" className="underline">
+              Powered by ホットペッパーグルメ Webサービス
+            </a>
+            {city && "　"}
+          </>
+        )}
+        {city && `出典：政府統計の総合窓口(e-Stat)（${city.year}年）`}
+      </p>
+    </Card>
+  );
+}
+
+function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend"]; genre: string; trendFit: string }) {
+  const { web, youtube, notes } = bundle;
+  return (
+    <Card>
+      <h3 className="text-sm font-black text-accent">📈 {genre}で今はやっているもの</h3>
+      <p className="mt-2 text-sm leading-relaxed font-bold">{trendFit}</p>
+
+      {notes.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-bold">📝 X・Instagramの流行メモ（運営が収集）</p>
+          <ul className="mt-1 space-y-1 text-xs leading-relaxed">
+            {notes.slice(0, 6).map((n) => (
+              <li key={n.id}>
+                <span className="mr-1 rounded bg-foreground px-1 text-[10px] text-white">{n.source}</span>
+                {n.text}
+                <span className="text-[10px] text-ink-soft">（{n.createdAt.slice(5, 10).replace("-", "/")}）</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {youtube.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-bold">▶️ YouTubeで伸びている動画（直近30日）</summary>
+          <ul className="mt-1 space-y-1">
+            {youtube.slice(0, 6).map((v) => (
+              <li key={v.url} className="text-[11px] leading-relaxed">
+                <a href={v.url} target="_blank" rel="noreferrer" className="underline">
+                  {v.title}
+                </a>
+                <span className="text-ink-soft">　{Math.round(v.views / 1000).toLocaleString("ja-JP")}千回</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-bold text-ink-soft">
+          🌐 Web記事の巡回（{web.by === "claude-code" ? "Claude Code" : web.by === "api" ? "AI" : "デモ"}・
+          {new Date(web.fetchedAt).toLocaleDateString("ja-JP")}）
+        </summary>
+        <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{web.report}</p>
+        {web.sources.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {web.sources.map((s) => (
+              <li key={s.url}>
+                <a href={s.url} target="_blank" rel="noreferrer" className="text-[11px] text-accent underline">
+                  {s.title || s.url}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
+    </Card>
   );
 }

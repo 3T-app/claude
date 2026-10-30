@@ -16,10 +16,23 @@ import {
   type Diagnosis,
   type Lecture,
 } from "./schemas";
-import { GENRE_SLUGS } from "./constants";
-import { DATA_DIR, INDICATORS, readDB, updateDB, type PostInsight, type TrendCache } from "./store";
+import { ALL_GENRES, GENRE_SLUGS } from "./constants";
+import { cityStats, formatCityStats, type CityStats } from "./sources/estat";
+import { competition, composition, formatCompetition, formatComposition, type Competition } from "./sources/hotpepper";
+import { formatYouTube, youtubeTrends, type YouTubeVideo } from "./sources/youtube";
+import { DATA_DIR, INDICATORS, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/** 外部データは取れなくても分析を止めない */
+async function safe<T>(label: string, p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (err) {
+    console.warn(`[${label}]`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────
 // 商圏を学ぼう：街の講義
@@ -41,10 +54,19 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
     return { area, lecture: cached.data as Lecture };
   }
 
+  const [mix, stats] = area
+    ? await Promise.all([
+        safe("hotpepper", composition(area.lat, area.lng)),
+        safe("estat", cityStats(area.city)),
+      ])
+    : [null, null];
+
   const system = await baseSystem("あなたの役割は、指定された東京の街の「商圏」を初心者に講義することです。");
   const content = [
     `講義する場所：${place}`,
     area ? `運営が特に見てほしいポイント：\n${area.hints.map((h) => `- ${h}`).join("\n")}` : "",
+    mix ? `<街の飲食店の構成（ホットペッパー）>\n${formatComposition(mix)}\n</街の飲食店の構成>` : "",
+    stats ? `<この街がある区市の統計（e-Stat）>\n${formatCityStats(stats)}\n</この街がある区市の統計>` : "",
     `この街についてのみんなの投稿（AIが読み取った気づき）：\n${formatInsights(insights)}`,
     "東京都外の場所なら isTokyo を false にし、他の項目は空でかまいません。",
     "読み手はデートや友人との街歩きの前に読む人です。専門用語には短い言い換えを添えてください。",
@@ -150,6 +172,38 @@ export async function getTrend(genre: string): Promise<TrendCache> {
   return trend;
 }
 
+/** 運営が手で入れた流行メモ（直近14日、その業態と「全般」） */
+export async function recentNotes(genre: string, days = 14): Promise<TrendNote[]> {
+  const since = Date.now() - days * DAY;
+  return (await readDB()).trendNotes
+    .filter((n) => (n.genre === genre || n.genre === ALL_GENRES) && Date.parse(n.createdAt) >= since)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 20);
+}
+
+export function formatNotes(notes: TrendNote[]): string {
+  if (notes.length === 0) return "（直近の流行メモはありません）";
+  return notes
+    .map((n) => `- [${n.createdAt.slice(0, 10)}｜${n.source}｜${n.genre}] ${n.text}${n.url ? `（${n.url}）` : ""}`)
+    .join("\n");
+}
+
+export interface TrendBundle {
+  web: TrendCache;
+  youtube: YouTubeVideo[];
+  notes: TrendNote[];
+}
+
+/** 流行の材料をまとめて集める：手入れのSNSメモ ＋ YouTube ＋ Web巡回 */
+export async function getTrendBundle(genre: string): Promise<TrendBundle> {
+  const [web, youtube, notes] = await Promise.all([
+    getTrend(genre),
+    safe("youtube", youtubeTrends(genre)),
+    recentNotes(genre),
+  ]);
+  return { web, youtube: youtube ?? [], notes };
+}
+
 // ─────────────────────────────────────────────
 // 立地調査
 // ─────────────────────────────────────────────
@@ -158,7 +212,9 @@ export interface DiagnosisResult {
   diagnosis: Diagnosis;
   point: GeoPoint | null;
   nearby: { id: string; name: string; distance: number }[];
-  trend: TrendCache;
+  trend: TrendBundle;
+  competition: Competition | null;
+  city: CityStats | null;
   demo: boolean;
 }
 
@@ -167,17 +223,25 @@ export async function diagnose(input: { name: string; address: string; genre: st
   const nearby = point ? nearestAreas(point.lat, point.lng, 3) : [];
   const nearbyInfo = nearby.map(({ area, distance }) => ({ id: area.id, name: area.name, distance: Math.round(distance) }));
 
+  // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
+  const [trend, comp, city] = await Promise.all([
+    getTrendBundle(input.genre),
+    point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
+    safe("estat", cityStats(point?.label, input.address)),
+  ]);
+
   if (isDemoMode()) {
     return {
       diagnosis: demoDiagnosis(input.name, input.address, input.genre),
       point,
       nearby: nearbyInfo,
-      trend: await getTrend(input.genre),
+      trend,
+      competition: comp,
+      city,
       demo: true,
     };
   }
 
-  const trend = await getTrend(input.genre);
   const areaIds = nearby.filter((n) => n.distance < 2500).map((n) => n.area.id);
   const [local, connectionCases] = await Promise.all([
     findInsights({ areaIds: areaIds.length ? areaIds : undefined, limit: 12 }),
@@ -201,10 +265,16 @@ export async function diagnose(input: { name: string; address: string; genre: st
       : "",
     `<周辺のみんなの投稿>\n${formatInsights(local)}\n</周辺のみんなの投稿>`,
     `<接続性について集まった気づき（他の街も含む）>\n${formatInsights(connectionCases)}\n</接続性について集まった気づき>`,
-    `<${input.genre}の最新トレンド（SNS巡回）>\n${trend.report}\n</${input.genre}の最新トレンド>`,
+    `<周辺の飲食店（ホットペッパー）>\n${formatCompetition(comp, input.genre)}\n</周辺の飲食店>`,
+    `<区市の人口・世帯（e-Stat）>\n${formatCityStats(city)}\n</区市の人口・世帯>`,
+    `<${input.genre}の流行：運営がX・Instagramなどから手で集めたメモ（最優先で参考にする）>\n${formatNotes(trend.notes)}\n</流行メモ>`,
+    `<${input.genre}の流行：YouTubeで直近30日に再生が多い動画>\n${formatYouTube(trend.youtube)}\n</YouTube>`,
+    `<${input.genre}の流行：Web記事の巡回>\n${trend.web.report}\n</Web記事の巡回>`,
     "",
     `評価軸は必ず ${INDICATORS.join("・")} の5つをこの順で出してください。`,
     "3を「平均的」とし、根拠が乏しい場合は3に寄せ、その旨を caveats に書いてください。",
+    "数字のデータ（同業の軒数、一人暮らしの割合、昼夜間人口比など）がある軸は、その数字を reason に必ず引用してください。データがない軸は推定であることを書いてください。",
+    "trendFit とバズるメニューは、流行メモ・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
   ]
     .filter(Boolean)
@@ -221,7 +291,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
   diagnosis.scores = INDICATORS.map(
     (ind) => diagnosis.scores.find((s) => s.indicator === ind) ?? { indicator: ind, score: 3, reason: "評価できませんでした", advice: "" },
   );
-  return { diagnosis, point, nearby: nearbyInfo, trend, demo: false };
+  return { diagnosis, point, nearby: nearbyInfo, trend, competition: comp, city, demo: false };
 }
 
 // ─────────────────────────────────────────────

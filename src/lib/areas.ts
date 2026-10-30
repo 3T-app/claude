@@ -17,6 +17,8 @@ export interface Area {
   lat: number;
   lng: number;
   category: AreaCategory;
+  /** 統計（e-Stat）を引く区市。駅や中心がある側 */
+  city: string;
   catch: string;
   hints: string[];
 }
@@ -34,7 +36,7 @@ export const CATEGORY_LABELS: Record<AreaCategory, string> = {
 export const AREAS: Area[] = [
   // ── ターミナル・繁華街 ──
   {
-    id: "shinjuku", name: "新宿", kana: "しんじゅく", lat: 35.6909, lng: 139.7003, category: "terminal",
+    id: "shinjuku", name: "新宿", kana: "しんじゅく", lat: 35.6909, lng: 139.7003, category: "terminal", city: "新宿区",
     catch: "東口・西口・南口で「別の街」が3つ重なる",
     hints: [
       "東口は百貨店と歌舞伎町、西口は高層オフィス、南口はバスタ新宿と新南口。出口ごとに客層が入れ替わる",
@@ -43,7 +45,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "shibuya", name: "渋谷", kana: "しぶや", lat: 35.658, lng: 139.7016, category: "terminal",
+    id: "shibuya", name: "渋谷", kana: "しぶや", lat: 35.658, lng: 139.7016, category: "terminal", city: "渋谷区",
     catch: "谷底の街が「若者の街」から「大人とITの街」へ",
     hints: [
       "地名の通り谷底の地形で、坂を上るほど客層と店の単価が変わる",
@@ -52,7 +54,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "ikebukuro", name: "池袋", kana: "いけぶくろ", lat: 35.7295, lng: 139.7109, category: "terminal",
+    id: "ikebukuro", name: "池袋", kana: "いけぶくろ", lat: 35.7295, lng: 139.7109, category: "terminal", city: "豊島区",
     catch: "東に西武、西に東武。埼玉の玄関口",
     hints: [
       "東口に西武百貨店、西口に東武百貨店という「逆転配置」はデートで使える定番ネタ",
@@ -61,7 +63,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "ueno", name: "上野", kana: "うえの", lat: 35.7138, lng: 139.7773, category: "terminal",
+    id: "ueno", name: "上野", kana: "うえの", lat: 35.7138, lng: 139.7773, category: "terminal", city: "台東区",
     catch: "北の玄関口に、市場と美術館と動物園が同居",
     hints: [
       "アメ横は戦後闇市から続く商店街で、食べ歩きとインバウンド需要が強い",
@@ -70,7 +72,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "shinagawa", name: "品川", kana: "しながわ", lat: 35.6285, lng: 139.7387, category: "terminal",
+    id: "shinagawa", name: "品川", kana: "しながわ", lat: 35.6285, lng: 139.7387, category: "terminal", city: "港区",
     catch: "港区にある品川駅。新幹線とオフィスの街",
     hints: [
       "品川駅は品川区ではなく港区にある、という定番うんちく",
@@ -79,7 +81,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "akihabara", name: "秋葉原", kana: "あきはばら", lat: 35.6984, lng: 139.7731, category: "terminal",
+    id: "akihabara", name: "秋葉原", kana: "あきはばら", lat: 35.6984, lng: 139.7731, category: "terminal", city: "千代田区",
     catch: "電気街 → オタクの聖地 → インバウンドの街",
     hints: [
       "家電の街からPC・アニメ・アイドルへと、主力商品が時代ごとに入れ替わってきた",
@@ -88,7 +90,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kitasenju", name: "北千住", kana: "きたせんじゅ", lat: 35.7493, lng: 139.8048, category: "terminal",
+    id: "kitasenju", name: "北千住", kana: "きたせんじゅ", lat: 35.7493, lng: 139.8048, category: "terminal", city: "足立区",
     catch: "5路線が集まる宿場町。大学誘致で若返り",
     hints: [
       "JR・東京メトロ・東武・つくばエクスプレスが集まる乗換拠点",
@@ -97,7 +99,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kinshicho", name: "錦糸町", kana: "きんしちょう", lat: 35.6966, lng: 139.814, category: "terminal",
+    id: "kinshicho", name: "錦糸町", kana: "きんしちょう", lat: 35.6966, lng: 139.814, category: "terminal", city: "墨田区",
     catch: "城東の副都心。北口と南口で表情が真逆",
     hints: [
       "北口は錦糸公園や商業施設でファミリー寄り、南口は飲食店と歓楽街",
@@ -107,7 +109,7 @@ export const AREAS: Area[] = [
 
   // ── オフィス・ビジネス ──
   {
-    id: "marunouchi", name: "丸の内・大手町", kana: "まるのうち", lat: 35.6812, lng: 139.7671, category: "office",
+    id: "marunouchi", name: "丸の内・大手町", kana: "まるのうち", lat: 35.6812, lng: 139.7671, category: "office", city: "千代田区",
     catch: "平日と週末で「別の街」になるオフィスの都",
     hints: [
       "平日昼は巨大なランチ需要、週末は丸の内仲通りの散策・ショッピング需要に入れ替わる",
@@ -115,7 +117,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "shimbashi", name: "新橋", kana: "しんばし", lat: 35.6663, lng: 139.7583, category: "office",
+    id: "shimbashi", name: "新橋", kana: "しんばし", lat: 35.6663, lng: 139.7583, category: "office", city: "港区",
     catch: "サラリーマンの聖地。ガード下とSL広場",
     hints: [
       "日本の鉄道発祥の地の一つ。SL広場は街頭インタビューの定番",
@@ -124,7 +126,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "nihonbashi", name: "日本橋", kana: "にほんばし", lat: 35.684, lng: 139.774, category: "office",
+    id: "nihonbashi", name: "日本橋", kana: "にほんばし", lat: 35.684, lng: 139.774, category: "office", city: "中央区",
     catch: "五街道の起点。老舗と再開発のハイブリッド",
     hints: [
       "日本橋は五街道の起点で、道路元標がある",
@@ -133,7 +135,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "toranomon", name: "虎ノ門", kana: "とらのもん", lat: 35.6667, lng: 139.7499, category: "office",
+    id: "toranomon", name: "虎ノ門", kana: "とらのもん", lat: 35.6667, lng: 139.7499, category: "office", city: "港区",
     catch: "官庁街の隣に生まれた新しい国際ビジネス街",
     hints: [
       "虎ノ門ヒルズを中心に再開発が続き、新駅（虎ノ門ヒルズ駅）も開業した",
@@ -141,7 +143,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "gotanda", name: "五反田", kana: "ごたんだ", lat: 35.6262, lng: 139.7236, category: "office",
+    id: "gotanda", name: "五反田", kana: "ごたんだ", lat: 35.6262, lng: 139.7236, category: "office", city: "品川区",
     catch: "スタートアップが集まる「五反田バレー」",
     hints: [
       "都心より賃料が抑えめで、IT系スタートアップが集まった",
@@ -149,7 +151,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "jimbocho", name: "神保町", kana: "じんぼうちょう", lat: 35.6958, lng: 139.7577, category: "office",
+    id: "jimbocho", name: "神保町", kana: "じんぼうちょう", lat: 35.6958, lng: 139.7577, category: "office", city: "千代田区",
     catch: "世界最大級の古書店街は、カレーの街でもある",
     hints: [
       "古書店が多く集まる本の街。本を傷めないよう、店の多くは北向きに並ぶとも言われる",
@@ -160,7 +162,7 @@ export const AREAS: Area[] = [
 
   // ── 若者・カルチャー ──
   {
-    id: "harajuku", name: "原宿・表参道", kana: "はらじゅく", lat: 35.6654, lng: 139.712, category: "youth",
+    id: "harajuku", name: "原宿・表参道", kana: "はらじゅく", lat: 35.6654, lng: 139.712, category: "youth", city: "渋谷区",
     catch: "竹下通りと表参道。数百メートルで客層が激変",
     hints: [
       "竹下通りは10代と訪日客、表参道は海外ブランド、キャットストリートはその中間",
@@ -168,7 +170,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "shimokitazawa", name: "下北沢", kana: "しもきたざわ", lat: 35.6614, lng: 139.668, category: "youth",
+    id: "shimokitazawa", name: "下北沢", kana: "しもきたざわ", lat: 35.6614, lng: 139.668, category: "youth", city: "世田谷区",
     catch: "古着・演劇・ライブ。線路跡が新しい街になった",
     hints: [
       "小田急線の地下化で生まれた線路跡地に、BONUS TRACKなどの低層の商業空間ができた",
@@ -177,7 +179,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "koenji", name: "高円寺", kana: "こうえんじ", lat: 35.7053, lng: 139.6497, category: "youth",
+    id: "koenji", name: "高円寺", kana: "こうえんじ", lat: 35.7053, lng: 139.6497, category: "youth", city: "杉並区",
     catch: "古着と阿波おどりとライブハウスの街",
     hints: [
       "古着屋とライブハウスが多く、バンドマンや若者が住む街",
@@ -186,7 +188,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "nakano", name: "中野", kana: "なかの", lat: 35.7074, lng: 139.6658, category: "youth",
+    id: "nakano", name: "中野", kana: "なかの", lat: 35.7074, lng: 139.6658, category: "youth", city: "中野区",
     catch: "中野ブロードウェイはサブカルの迷宮",
     hints: [
       "中野ブロードウェイは住居付きの複合商業ビルで、まんだらけなどマニア向けの店が集積",
@@ -195,7 +197,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "shinokubo", name: "新大久保", kana: "しんおおくぼ", lat: 35.7012, lng: 139.7, category: "youth",
+    id: "shinokubo", name: "新大久保", kana: "しんおおくぼ", lat: 35.7012, lng: 139.7, category: "youth", city: "新宿区",
     catch: "コリアンタウンから多国籍タウンへ",
     hints: [
       "韓流ブームで韓国料理・コスメの店が集積し、10〜20代女性の聖地になった",
@@ -204,7 +206,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "takadanobaba", name: "高田馬場", kana: "たかだのばば", lat: 35.7128, lng: 139.7038, category: "youth",
+    id: "takadanobaba", name: "高田馬場", kana: "たかだのばば", lat: 35.7128, lng: 139.7038, category: "youth", city: "新宿区",
     catch: "学生街にしてラーメン激戦区",
     hints: [
       "早稲田大学をはじめ学校が多く、安く量の多い店が強い",
@@ -213,7 +215,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kichijoji", name: "吉祥寺", kana: "きちじょうじ", lat: 35.7031, lng: 139.5798, category: "youth",
+    id: "kichijoji", name: "吉祥寺", kana: "きちじょうじ", lat: 35.7031, lng: 139.5798, category: "youth", city: "武蔵野市",
     catch: "「住みたい街」常連。公園と横丁と百貨店",
     hints: [
       "井の頭公園という自然の集客装置が駅から徒歩圏にある",
@@ -222,7 +224,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "sangenjaya", name: "三軒茶屋", kana: "さんげんぢゃや", lat: 35.6436, lng: 139.671, category: "youth",
+    id: "sangenjaya", name: "三軒茶屋", kana: "さんげんぢゃや", lat: 35.6436, lng: 139.671, category: "youth", city: "世田谷区",
     catch: "三角地帯の路地に、大人の飲み需要が集まる",
     hints: [
       "国道246号と世田谷通りに挟まれた「三角地帯」に小さな飲食店が密集",
@@ -230,7 +232,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "akabane", name: "赤羽", kana: "あかばね", lat: 35.7779, lng: 139.721, category: "youth",
+    id: "akabane", name: "赤羽", kana: "あかばね", lat: 35.7779, lng: 139.721, category: "youth", city: "北区",
     catch: "朝から飲める「せんべろ」の聖地",
     hints: [
       "朝や昼から営業する居酒屋が多く、千円でべろべろになれる「せんべろ」文化",
@@ -241,7 +243,7 @@ export const AREAS: Area[] = [
 
   // ── 下町・老舗 ──
   {
-    id: "asakusa", name: "浅草", kana: "あさくさ", lat: 35.7118, lng: 139.7966, category: "shitamachi",
+    id: "asakusa", name: "浅草", kana: "あさくさ", lat: 35.7118, lng: 139.7966, category: "shitamachi", city: "台東区",
     catch: "雷門から仲見世へ。食べ歩きの聖地",
     hints: [
       "雷門から浅草寺までの仲見世は、日本最古級の商店街のひとつ",
@@ -250,7 +252,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "oshiage", name: "押上・スカイツリー", kana: "おしあげ", lat: 35.7101, lng: 139.8107, category: "shitamachi",
+    id: "oshiage", name: "押上・スカイツリー", kana: "おしあげ", lat: 35.7101, lng: 139.8107, category: "shitamachi", city: "墨田区",
     catch: "下町に634mのランドマークが立ったら",
     hints: [
       "東京スカイツリーの高さ634mは旧国名「武蔵（むさし）」の語呂合わせ",
@@ -259,7 +261,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kuramae", name: "蔵前", kana: "くらまえ", lat: 35.7031, lng: 139.7905, category: "shitamachi",
+    id: "kuramae", name: "蔵前", kana: "くらまえ", lat: 35.7031, lng: 139.7905, category: "shitamachi", city: "台東区",
     catch: "職人の街は「東京のブルックリン」",
     hints: [
       "江戸時代に幕府の米蔵があったことが地名の由来",
@@ -268,7 +270,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "yanesen", name: "谷中・根津・千駄木", kana: "やねせん", lat: 35.727, lng: 139.766, category: "shitamachi",
+    id: "yanesen", name: "谷中・根津・千駄木", kana: "やねせん", lat: 35.727, lng: 139.766, category: "shitamachi", city: "台東区",
     catch: "猫と坂と商店街。戦災を免れた街並み",
     hints: [
       "谷中銀座商店街の入口の階段は「夕やけだんだん」と呼ばれる",
@@ -277,7 +279,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "sugamo", name: "巣鴨", kana: "すがも", lat: 35.7334, lng: 139.7393, category: "shitamachi",
+    id: "sugamo", name: "巣鴨", kana: "すがも", lat: 35.7334, lng: 139.7393, category: "shitamachi", city: "豊島区",
     catch: "「おばあちゃんの原宿」は高齢化社会の最先端",
     hints: [
       "巣鴨地蔵通り商店街の「とげぬき地蔵」参拝が来街のきっかけ",
@@ -286,7 +288,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kagurazaka", name: "神楽坂", kana: "かぐらざか", lat: 35.702, lng: 139.741, category: "shitamachi",
+    id: "kagurazaka", name: "神楽坂", kana: "かぐらざか", lat: 35.702, lng: 139.741, category: "shitamachi", city: "新宿区",
     catch: "石畳の路地と料亭、そしてフランス",
     hints: [
       "かつての花街の名残で、石畳の路地に料亭が残る",
@@ -295,7 +297,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "ningyocho", name: "人形町", kana: "にんぎょうちょう", lat: 35.6862, lng: 139.7826, category: "shitamachi",
+    id: "ningyocho", name: "人形町", kana: "にんぎょうちょう", lat: 35.6862, lng: 139.7826, category: "shitamachi", city: "中央区",
     catch: "甘酒横丁と老舗。江戸の味が残る街",
     hints: [
       "甘酒横丁には老舗の和菓子・総菜店が並ぶ",
@@ -303,7 +305,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kiyosumi", name: "清澄白河", kana: "きよすみしらかわ", lat: 35.6818, lng: 139.7993, category: "shitamachi",
+    id: "kiyosumi", name: "清澄白河", kana: "きよすみしらかわ", lat: 35.6818, lng: 139.7993, category: "shitamachi", city: "江東区",
     catch: "倉庫の街がコーヒーの聖地になった理由",
     hints: [
       "2015年にブルーボトルコーヒーの日本1号店ができ、サードウェーブコーヒーの街として知られるように",
@@ -312,7 +314,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "tsukiji", name: "築地", kana: "つきじ", lat: 35.6654, lng: 139.7707, category: "shitamachi",
+    id: "tsukiji", name: "築地", kana: "つきじ", lat: 35.6654, lng: 139.7707, category: "shitamachi", city: "中央区",
     catch: "市場は移転しても、場外は生きている",
     hints: [
       "中央卸売市場は豊洲へ移転したが、築地場外市場は営業を続けている",
@@ -320,7 +322,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "tsukishima", name: "月島", kana: "つきしま", lat: 35.664, lng: 139.784, category: "shitamachi",
+    id: "tsukishima", name: "月島", kana: "つきしま", lat: 35.664, lng: 139.784, category: "shitamachi", city: "中央区",
     catch: "もんじゃストリートとタワマンの共存",
     hints: [
       "西仲通り商店街に、もんじゃ焼きの店が多く集まる",
@@ -328,7 +330,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "kamata", name: "蒲田", kana: "かまた", lat: 35.5624, lng: 139.716, category: "shitamachi",
+    id: "kamata", name: "蒲田", kana: "かまた", lat: 35.5624, lng: 139.716, category: "shitamachi", city: "大田区",
     catch: "羽根つき餃子と町工場と羽田",
     hints: [
       "羽根つき餃子の発祥の地として知られる",
@@ -339,7 +341,7 @@ export const AREAS: Area[] = [
 
   // ── 住宅街・ファミリー ──
   {
-    id: "ebisu", name: "恵比寿", kana: "えびす", lat: 35.6467, lng: 139.7101, category: "residential",
+    id: "ebisu", name: "恵比寿", kana: "えびす", lat: 35.6467, lng: 139.7101, category: "residential", city: "渋谷区",
     catch: "駅名の由来はビール。大人のデートの街",
     hints: [
       "ヱビスビールの出荷駅が駅名の由来。街の名前が商品から生まれた珍しい例",
@@ -347,7 +349,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "nakameguro", name: "中目黒", kana: "なかめぐろ", lat: 35.644, lng: 139.6986, category: "residential",
+    id: "nakameguro", name: "中目黒", kana: "なかめぐろ", lat: 35.644, lng: 139.6986, category: "residential", city: "目黒区",
     catch: "目黒川の桜並木は、春に街の需要を一変させる",
     hints: [
       "目黒川沿いの桜の季節に、通年とは桁違いの人出がある",
@@ -356,7 +358,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "daikanyama", name: "代官山", kana: "だいかんやま", lat: 35.6489, lng: 139.7031, category: "residential",
+    id: "daikanyama", name: "代官山", kana: "だいかんやま", lat: 35.6489, lng: 139.7031, category: "residential", city: "渋谷区",
     catch: "駅前が小さく、街全体がゆったり歩く場所",
     hints: [
       "代官山T-SITE（蔦屋書店）が「居場所型」の商業のお手本とされる",
@@ -364,7 +366,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "jiyugaoka", name: "自由が丘", kana: "じゆうがおか", lat: 35.6076, lng: 139.6687, category: "residential",
+    id: "jiyugaoka", name: "自由が丘", kana: "じゆうがおか", lat: 35.6076, lng: 139.6687, category: "residential", city: "目黒区",
     catch: "スイーツの街。女性客が主役の商圏",
     hints: [
       "パティスリーが集積する「スイーツの街」として知られる",
@@ -373,7 +375,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "futakotamagawa", name: "二子玉川", kana: "ふたこたまがわ", lat: 35.6115, lng: 139.6268, category: "residential",
+    id: "futakotamagawa", name: "二子玉川", kana: "ふたこたまがわ", lat: 35.6115, lng: 139.6268, category: "residential", city: "世田谷区",
     catch: "多摩川の河原とファミリーの「ニコタマ」",
     hints: [
       "二子玉川ライズと玉川髙島屋S・Cが駅の両側にある",
@@ -382,7 +384,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "seijo", name: "成城学園前", kana: "せいじょう", lat: 35.6404, lng: 139.5996, category: "residential",
+    id: "seijo", name: "成城学園前", kana: "せいじょう", lat: 35.6404, lng: 139.5996, category: "residential", city: "世田谷区",
     catch: "高級住宅街が生んだ「成城石井」",
     hints: [
       "スーパーの成城石井は、この街で創業した",
@@ -390,7 +392,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "ogikubo", name: "荻窪", kana: "おぎくぼ", lat: 35.7046, lng: 139.62, category: "residential",
+    id: "ogikubo", name: "荻窪", kana: "おぎくぼ", lat: 35.7046, lng: 139.62, category: "residential", city: "杉並区",
     catch: "東京ラーメンの名所の一つ",
     hints: [
       "醤油ラーメンの名店が多く「荻窪ラーメン」として知られる",
@@ -398,7 +400,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "oimachi", name: "大井町", kana: "おおいまち", lat: 35.6074, lng: 139.7349, category: "residential",
+    id: "oimachi", name: "大井町", kana: "おおいまち", lat: 35.6074, lng: 139.7349, category: "residential", city: "品川区",
     catch: "駅裏の飲み屋横丁と再開発",
     hints: [
       "東小路などの昔ながらの飲み屋横丁が駅のすぐそばにある",
@@ -408,7 +410,7 @@ export const AREAS: Area[] = [
 
   // ── 湾岸・新興 ──
   {
-    id: "toyosu", name: "豊洲", kana: "とよす", lat: 35.655, lng: 139.796, category: "bay",
+    id: "toyosu", name: "豊洲", kana: "とよす", lat: 35.655, lng: 139.796, category: "bay", city: "江東区",
     catch: "市場とタワマンとららぽーと",
     hints: [
       "造船所の跡地がららぽーと豊洲になり、ドックの名残が残る",
@@ -417,7 +419,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "odaiba", name: "お台場", kana: "おだいば", lat: 35.627, lng: 139.774, category: "bay",
+    id: "odaiba", name: "お台場", kana: "おだいば", lat: 35.627, lng: 139.774, category: "bay", city: "港区",
     catch: "江戸の砲台跡は、イベントとデートの街",
     hints: [
       "「台場」は幕末に造られた砲台が由来",
@@ -426,7 +428,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "roppongi", name: "六本木", kana: "ろっぽんぎ", lat: 35.6628, lng: 139.7314, category: "terminal",
+    id: "roppongi", name: "六本木", kana: "ろっぽんぎ", lat: 35.6628, lng: 139.7314, category: "terminal", city: "港区",
     catch: "昼は美術館、夜は国際的な夜の街",
     hints: [
       "六本木ヒルズと東京ミッドタウンという2つの複合施設が、昼の来街理由を作った",
@@ -435,7 +437,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "ginza", name: "銀座", kana: "ぎんざ", lat: 35.6717, lng: 139.765, category: "terminal",
+    id: "ginza", name: "銀座", kana: "ぎんざ", lat: 35.6717, lng: 139.765, category: "terminal", city: "中央区",
     catch: "日本一地価が高い交差点のある街",
     hints: [
       "銀座の土地は日本で最も地価が高い場所として毎年ニュースになる",
@@ -446,7 +448,7 @@ export const AREAS: Area[] = [
 
   // ── 多摩・広域商圏 ──
   {
-    id: "tachikawa", name: "立川", kana: "たちかわ", lat: 35.698, lng: 139.4137, category: "tama",
+    id: "tachikawa", name: "立川", kana: "たちかわ", lat: 35.698, lng: 139.4137, category: "tama", city: "立川市",
     catch: "多摩の都心。百貨店とIKEAとららぽーと",
     hints: [
       "多摩地域の中心で、周辺の市から買い物客が集まる広域商圏",
@@ -455,7 +457,7 @@ export const AREAS: Area[] = [
     ],
   },
   {
-    id: "machida", name: "町田", kana: "まちだ", lat: 35.5422, lng: 139.4458, category: "tama",
+    id: "machida", name: "町田", kana: "まちだ", lat: 35.5422, lng: 139.4458, category: "tama", city: "町田市",
     catch: "「神奈川県町田市」と言われる、東京の端の巨大商圏",
     hints: [
       "東京都だが神奈川県に囲まれるように位置し、神奈川側からも人が集まる",

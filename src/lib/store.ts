@@ -39,15 +39,28 @@ export interface TrendCache {
   by: "api" | "claude-code" | "demo";
 }
 
+/** 運営が毎日手で入れる X・Instagram などの流行メモ */
+export interface TrendNote {
+  id: string;
+  genre: string;
+  source: string;
+  text: string;
+  url: string;
+  createdAt: string;
+}
+
 interface DB {
   posts: Post[];
   trends: Record<string, TrendCache>;
+  trendNotes: TrendNote[];
   lectures: Record<string, { data: unknown; postCount: number; createdAt: string }>;
   chatUsage: Record<string, number>;
+  /** 外部APIの結果のキャッシュ（YouTube・ホットペッパー・e-Stat） */
+  sourceCache: Record<string, { data: unknown; fetchedAt: string }>;
   teachings: string;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, lectures: {}, chatUsage: {}, teachings: "" };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, chatUsage: {}, sourceCache: {}, teachings: "" };
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -109,4 +122,20 @@ export function emptyReactions(): Record<ReactionType, string[]> {
 
 export function reactionCount(p: Post): number {
   return Object.values(p.reactions).reduce((n, list) => n + list.length, 0);
+}
+
+/** 外部APIの結果を ttlMs の間キャッシュする。失敗時は古いキャッシュがあればそれを返す */
+export async function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+  const hit = (await readDB()).sourceCache[key];
+  if (hit && Date.now() - Date.parse(hit.fetchedAt) < ttlMs) return hit.data as T;
+  try {
+    const data = await fetcher();
+    await updateDB((db) => {
+      db.sourceCache[key] = { data, fetchedAt: new Date().toISOString() };
+    });
+    return data;
+  } catch (err) {
+    if (hit) return hit.data as T;
+    throw err;
+  }
 }
