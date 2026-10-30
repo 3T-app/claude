@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getArea } from "@/lib/areas";
 import { isDemoMode, MODEL } from "@/lib/claude";
-import { adminAuthorized as authorized } from "@/lib/admin";
+import { adminAuthorized as authorized, adminDenied } from "@/lib/admin";
 import { estatEnabled } from "@/lib/sources/estat";
 import { hotpepperEnabled } from "@/lib/sources/hotpepper";
 import { youtubeEnabled } from "@/lib/sources/youtube";
@@ -11,7 +11,7 @@ import { readDB, reactionCount, updateDB } from "@/lib/store";
 // 運営がAIに「何を見てほしいか」を教える画面用。ADMIN_TOKEN で保護する。
 
 export async function GET(req: Request) {
-  if (!authorized(req)) return NextResponse.json({ error: "管理トークンが違います。" }, { status: 401 });
+  if (!authorized(req)) return adminDenied();
   const db = await readDB();
   const insights = db.posts
     .filter((p) => p.insight)
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  if (!authorized(req)) return NextResponse.json({ error: "管理トークンが違います。" }, { status: 401 });
+  if (!authorized(req)) return adminDenied();
   const { teachings } = (await req.json()) as { teachings?: string };
   if (typeof teachings !== "string") return NextResponse.json({ error: "内容が空です。" }, { status: 400 });
   await updateDB((db) => {

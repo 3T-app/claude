@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminAuthorized } from "@/lib/admin";
+import { adminAuthorized, adminDenied } from "@/lib/admin";
 import { testClaude } from "@/lib/claude";
 import { testStripe } from "@/lib/payments";
 import { estatEnabled, testEstat } from "@/lib/sources/estat";
@@ -19,7 +19,7 @@ async function run(enabled: boolean, test: () => Promise<string>) {
 
 // Claude API・決済・外部データの接続テスト
 export async function POST(req: Request) {
-  if (!adminAuthorized(req)) return NextResponse.json({ error: "管理トークンが違います。" }, { status: 401 });
+  if (!adminAuthorized(req)) return adminDenied();
   const [claude, stripe, youtube, hotpepper, estat] = await Promise.all([
     run(!!process.env.ANTHROPIC_API_KEY, testClaude),
     run(!!process.env.STRIPE_SECRET_KEY, testStripe),

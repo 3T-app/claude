@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { adminAuthorized } from "@/lib/admin";
+import { adminAuthorized, adminDenied } from "@/lib/admin";
 import { ALL_GENRES, GENRES, NOTE_SOURCES } from "@/lib/constants";
 import { updateDB, type TrendNote } from "@/lib/store";
 
-const DENIED = () => NextResponse.json({ error: "管理トークンが違います。" }, { status: 401 });
+const DENIED = adminDenied;
 
 // 運営が毎日入れる X・Instagram などの流行メモ
 export async function POST(req: Request) {

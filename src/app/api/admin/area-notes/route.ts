@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { adminAuthorized } from "@/lib/admin";
+import { adminAuthorized, adminDenied } from "@/lib/admin";
 import { getArea } from "@/lib/areas";
 import { getAreaNote } from "@/lib/knowledge";
 import { updateDB } from "@/lib/store";
 
-const DENIED = () => NextResponse.json({ error: "管理トークンが違います。" }, { status: 401 });
+const DENIED = adminDenied;
 
 // 街ごとの運営の現地調査メモ。講義と立地調査で最も信頼できる事実として使われる
 export async function GET(req: Request) {
