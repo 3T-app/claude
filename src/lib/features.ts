@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type Anthropic from "@anthropic-ai/sdk";
+import { formatAnalysis, loadAnalysisLecture, readAnalysis } from "./analyses";
 import { AREAS, distanceM, getArea, nearestAreas, type Area } from "./areas";
 import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claude";
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
@@ -88,11 +89,11 @@ export function buildMap(ai: LectureAI, pois: Poi[]): Lecture["map"] {
   };
 }
 
-/** 作成済みの講義があれば返す（立地調査で使う。なければ作らない） */
+/** 作成済みの講義か、Claude Code の事前分析があれば返す（立地調査で使う。なければ作らない） */
 async function cachedLecture(areaId: string): Promise<Lecture | null> {
   const c = (await readDB()).lectures[areaId];
-  if (!c || !("conclusion" in (c.data as object))) return null;
-  return c.data as Lecture;
+  if (c && "conclusion" in (c.data as object)) return c.data as Lecture;
+  return loadAnalysisLecture(areaId);
 }
 
 /** 点がどの商圏に入るか。どれにも入らなければ最寄りの商圏（300m以内） */
@@ -116,7 +117,8 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
   const place = area?.name ?? key.trim().slice(0, 40);
   const cacheKey = area ? area.id : `custom:${place}`;
 
-  if (isDemoMode()) return { area, lecture: demoLecture(area, place) };
+  const stored = area ? await loadAnalysisLecture(area.id) : null;
+  if (isDemoMode()) return { area, lecture: stored ?? demoLecture(area, place) };
 
   const [insights, note] = await Promise.all([
     area ? findInsights({ areaIds: [area.id], limit: 12 }) : Promise.resolve([]),
@@ -135,15 +137,39 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
     return { area, lecture: cached_.data };
   }
 
+  // Claude Code の事前分析があればすぐに返し、地図の店データを使った分析は裏で作って次回から出す
+  if (stored) {
+    if (!generating.has(cacheKey)) {
+      generating.add(cacheKey);
+      void generateLecture(area, place, cacheKey, version, insights, note)
+        .catch((err) => console.warn("[lecture]", err instanceof Error ? err.message : err))
+        .finally(() => generating.delete(cacheKey));
+    }
+    return { area, lecture: stored };
+  }
+  return { area, lecture: await generateLecture(area, place, cacheKey, version, insights, note) };
+}
+
+const generating = new Set<string>();
+
+async function generateLecture(
+  area: Area | null,
+  place: string,
+  cacheKey: string,
+  version: string,
+  insights: Awaited<ReturnType<typeof findInsights>>,
+  note: string,
+): Promise<Lecture> {
   const point = area ? { lat: area.lat, lng: area.lng, label: area.name } : await geocode(place);
   const center = point ? { lat: point.lat, lng: point.lng } : null;
   const radius = area?.category === "terminal" || area?.category === "tama" ? 1000 : 800;
 
-  const [pois, mix, stats, research] = await Promise.all([
+  const [pois, mix, stats, research, prior] = await Promise.all([
     center ? safe("osm", poisAround(center.lat, center.lng, radius)) : Promise.resolve(null),
     center ? safe("hotpepper", composition(center.lat, center.lng)) : Promise.resolve(null),
     safe("estat", cityStats(area?.city, point?.label, place)),
     safe("research", researchTown(place, cacheKey)),
+    area ? readAnalysis(area.id) : Promise.resolve(null),
   ]);
 
   const system = await baseSystem(
@@ -156,6 +182,7 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
     `<区市の統計（e-Stat）>\n${formatCityStats(stats)}\n</区市の統計>`,
     `<地図上の店・施設（OpenStreetMap）>\n${pois ? formatPois(pois, center!) : "（取得できませんでした）"}\n</地図上の店・施設>`,
     mix ? `<飲食店の構成（ホットペッパー）>\n${formatComposition(mix)}\n</飲食店の構成>` : "",
+    prior ? `<事前の分析（Claude Code が Web で調べたもの。地図の店データで確かめ、深める）>\n${formatAnalysis(prior)}\n</事前の分析>` : "",
     `<Web・ニュースの調査>\n${research?.text ?? "（取得できませんでした）"}\n</Web・ニュースの調査>`,
     `<この街のみんなの投稿（AIが読み取った気づき）>\n${formatInsights(insights)}\n</みんなの投稿>`,
     "",
@@ -176,7 +203,9 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
     ...ai,
     center,
     map: buildMap(ai, pois ?? []),
-    sources: research?.sources ?? [],
+    sources: [...(research?.sources ?? []), ...(prior?.sources ?? [])].filter(
+      (x, i, all) => all.findIndex((y) => y.url === x.url) === i,
+    ),
     dataUsed: { osm: !!pois?.length, hotpepper: !!mix, estat: !!stats },
   };
   if (lecture.isTokyo) {
@@ -184,7 +213,7 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
       d.lectures[cacheKey] = { data: lecture, postCount: version, createdAt: new Date().toISOString() };
     });
   }
-  return { area, lecture };
+  return lecture;
 }
 
 export const FREE_QUESTIONS_PER_AREA = 1;

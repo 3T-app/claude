@@ -133,6 +133,9 @@ function LectureView({
               </li>
             ))}
           </ul>
+          {zones.every((z) => !z.polygon) && zones.length > 0 && (
+            <p className="px-4 pb-1 text-[10px] text-ink-soft">円は各商圏のおおよその範囲です</p>
+          )}
           {lines.some((l) => l.points.length >= 2) && (
             <p className="px-4 pb-2 text-[10px] text-ink-soft">点線：店と店の補完関係・集積（線をタップすると内容が出ます）</p>
           )}
@@ -309,6 +312,9 @@ function Sources({ lecture }: { lecture: Lecture }) {
     <details className="text-[11px] leading-relaxed text-ink-soft">
       <summary className="cursor-pointer font-bold">この講義の出典</summary>
       <ul className="mt-1 space-y-0.5">
+        {lecture.analyzedBy === "claude-code" && (
+          <li>分析：Claude Code が公開情報を調べて作成（{lecture.analyzedAt?.slice(0, 10)}時点）</li>
+        )}
         <li>地図：国土地理院</li>
         {d.osm && <li>店・施設の位置：© OpenStreetMap contributors</li>}
         {d.hotpepper && (

@@ -133,6 +133,9 @@ export interface Lecture extends LectureAI {
   };
   sources: { title: string; url: string }[];
   dataUsed: { osm: boolean; hotpepper: boolean; estat: boolean };
+  /** Claude Code の事前分析を表示しているとき */
+  analyzedBy?: "claude-code";
+  analyzedAt?: string;
 }
 
 // ── 立地診断 ──
