@@ -12,7 +12,7 @@ interface AdminData {
   trends: { genre: string; fetchedAt: string; by: string }[];
   stats: { posts: number; lectures: number };
   notes: TrendNote[];
-  sources: { youtube: boolean; hotpepper: boolean; estat: boolean };
+  sources: { claude: boolean; stripe: boolean; youtube: boolean; hotpepper: boolean; estat: boolean };
   model: string;
   demo: boolean;
 }
@@ -134,7 +134,13 @@ export default function AdminPage() {
   );
 }
 
-const SOURCE_NAMES = { youtube: "YouTube", hotpepper: "ホットペッパー", estat: "e-Stat" } as const;
+const SOURCE_NAMES = {
+  claude: "Claude API（AIの分析・回答）",
+  stripe: "Stripe（AIへの質問の決済）",
+  youtube: "YouTube",
+  hotpepper: "ホットペッパー",
+  estat: "e-Stat",
+} as const;
 
 /** 毎日の流行メモ。スマホでXやInstagramを見ながら、気になったものを1件ずつ入れる */
 function TrendNotesCard({ token, notes, onChange }: { token: string; notes: TrendNote[]; onChange: () => void }) {
@@ -250,7 +256,7 @@ function SourcesCard({ token, sources }: { token: string; sources: AdminData["so
 
   return (
     <Card>
-      <h2 className="text-sm font-black">🔌 AIが自動で使う外部データ</h2>
+      <h2 className="text-sm font-black">🔌 接続テスト（Claude API・決済・外部データ）</h2>
       <ul className="mt-2 space-y-1.5 text-xs">
         {(Object.keys(SOURCE_NAMES) as (keyof typeof SOURCE_NAMES)[]).map((k) => (
           <li key={k}>

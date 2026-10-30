@@ -37,6 +37,9 @@ function wrap(err: unknown): never {
   if (err instanceof AIError) throw err;
   if (err instanceof SyntaxError) throw new AIError("AIの回答を読み取れませんでした。もう一度お試しください。");
   if (err instanceof Anthropic.AuthenticationError) throw new AIError("APIキーが無効です。");
+  if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(err.message)) {
+    throw new AIError("Claude APIのクレジットが足りません。Claude Console の Billing で購入してください。");
+  }
   if (err instanceof Anthropic.RateLimitError) throw new AIError("混み合っています。少し待ってからお試しください。");
   if (err instanceof Anthropic.APIError) throw new AIError(`AIの呼び出しに失敗しました（${err.status ?? "network"}）`);
   throw err;
@@ -146,5 +149,33 @@ export async function askWithWebSearch(opts: {
     };
   } catch (err) {
     wrap(err);
+  }
+}
+
+/** /admin の接続テスト：APIキーとクレジットとモデルが使えるかを、ごく短い呼び出しで確かめる */
+export async function testClaude(): Promise<string> {
+  const key = process.env.ANTHROPIC_API_KEY ?? "";
+  if (key !== key.trim() || /^["']/.test(key)) {
+    throw new Error("APIキーの前後に空白か「\"」が入っています。.env.local では ANTHROPIC_API_KEY=sk-ant-… のように、そのまま貼ってください");
+  }
+  if (key && !key.startsWith("sk-ant-")) throw new Error("APIキーは sk-ant- で始まるはずです。Claude Console の API keys で作ったキーか確かめてください");
+  try {
+    const msg = await getClient().messages.create({
+      model: MODEL,
+      max_tokens: 16,
+      messages: [{ role: "user", content: "「OK」とだけ返してください。" }],
+    });
+    const demo = process.env.DEMO_MODE === "1" ? "。ただし DEMO_MODE=1 なので、アプリはデモ表示のままです（.env.local から消してください）" : "";
+    return `接続OK（モデル：${msg.model}）${demo}`;
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) throw new Error("APIキーが無効です。Claude Console でキーを作り直し、.env.local に貼り直してください");
+    if (err instanceof Anthropic.PermissionDeniedError) throw new Error("このキーには権限がありません。Console のワークスペースの設定を確かめてください");
+    if (err instanceof Anthropic.NotFoundError) throw new Error(`モデル ${MODEL} が使えません。CLAUDE_MODEL の設定を確かめてください`);
+    if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(err.message)) {
+      throw new Error("キーは正しいですが、クレジットが足りません。Claude Console の Billing でクレジットを購入してください");
+    }
+    if (err instanceof Anthropic.RateLimitError) throw new Error("混み合っているか、利用上限に達しています。少し待ってからもう一度お試しください");
+    if (err instanceof Anthropic.APIConnectionError) throw new Error("Claude API につながりません。インターネット接続を確かめてください");
+    throw err;
   }
 }

@@ -66,3 +66,10 @@ export async function isCheckoutPaid(sessionId: string, referenceId: string, amo
     s.payment_status === "paid" && s.client_reference_id === referenceId && s.amount_total === amount && s.currency === "jpy"
   );
 }
+
+/** /admin の接続テスト：Stripe のキーが使えるかと、テストモードか本番かを確かめる */
+export async function testStripe(): Promise<string> {
+  const key = process.env.STRIPE_SECRET_KEY ?? "";
+  await stripe<{ object: string }>("balance");
+  return key.includes("_test_") ? "接続OK（テストモード：実際には請求されません）" : "接続OK（本番モード：実際に請求されます）";
+}
