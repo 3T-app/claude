@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getLecture, remainingQuestions } from "@/lib/features";
-import { errorResponse, getUid } from "@/lib/http";
+import { getLecture } from "@/lib/features";
+import { errorResponse } from "@/lib/http";
 import { isDemoMode } from "@/lib/claude";
 import { readAreaNews } from "@/lib/news";
 
@@ -19,7 +19,6 @@ export async function POST(req: Request) {
       areaKey,
       area,
       lecture,
-      remaining: await remainingQuestions(await getUid(), areaKey),
       demo: isDemoMode(),
       news: area ? await readAreaNews(area.id) : [],
     });

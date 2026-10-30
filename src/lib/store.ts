@@ -49,12 +49,35 @@ export interface TrendNote {
   createdAt: string;
 }
 
+export interface StoredQuestion {
+  id: string;
+  uid: string;
+  kind: "lecture" | "diagnosis";
+  /** 街のID（または自由入力の地名）か、立地調査の結果のID */
+  target: string;
+  /** 画面に出す名前（街の名前・店名） */
+  label: string;
+  question: string;
+  status: "unpaid" | "paid" | "answered";
+  /** stripe：カード決済。test：STRIPE_SECRET_KEY がないときの請求しないテスト決済 */
+  payment: "stripe" | "test";
+  amount: number;
+  checkoutSessionId?: string;
+  answer?: string;
+  createdAt: string;
+  paidAt?: string;
+  answeredAt?: string;
+}
+
 interface DB {
   posts: Post[];
   trends: Record<string, TrendCache>;
   trendNotes: TrendNote[];
   lectures: Record<string, { data: unknown; postCount: number | string; createdAt: string }>;
-  chatUsage: Record<string, number>;
+  /** AIへの有料の質問（1回ごとに支払い） */
+  questions: Record<string, StoredQuestion>;
+  /** 立地調査の結果（支払いの画面から戻ったときに表示し直すため） */
+  diagnoses: Record<string, { uid: string; input: { name: string; address: string; genre: string }; result: unknown; createdAt: string }>;
   /** 外部APIの結果のキャッシュ（YouTube・ホットペッパー・e-Stat） */
   sourceCache: Record<string, { data: unknown; fetchedAt: string }>;
   /** /admin で編集したときだけ入る。空ならファイル（data/teachings.md, data/area-notes/*.md）を使う */
@@ -63,7 +86,7 @@ interface DB {
   areaNotes: Record<string, string>;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, chatUsage: {}, sourceCache: {}, teachings: "", areaNotes: {} };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, questions: {}, diagnoses: {}, sourceCache: {}, teachings: "", areaNotes: {} };
 
 let queue: Promise<unknown> = Promise.resolve();
 

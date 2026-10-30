@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import MapView, { type MapZone } from "@/components/MapView";
-import { Card, DemoBanner, ErrorNote, PageHeader } from "@/components/ui";
+import AskAI, { AskAILink } from "@/components/AskAI";
+import { Card, DemoBanner, ErrorNote, PageHeader, Spinner } from "@/components/ui";
 import { AREAS } from "@/lib/areas";
 import { zoneColor } from "@/lib/zoneColors";
 import type { DiagnosisResult } from "@/lib/features";
 import { GENRES } from "@/lib/constants";
+
+/** 保存された立地調査の結果（支払いの画面から戻ったときに読み直せる） */
+type SavedDiagnosis = DiagnosisResult & { id: string; input: { name: string; address: string; genre: string } };
 
 const STEPS = ["住所を地図に置いています", "SNSのトレンドを巡回しています", "みんなの投稿を照らし合わせています", "5つの軸で評価しています"];
 
@@ -18,7 +22,26 @@ export default function DiagnosePage() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<DiagnosisResult | null>(null);
+  const [result, setResult] = useState<SavedDiagnosis | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  // AIへの質問の支払いから戻ったときなど、?d= があれば保存した結果を表示する
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("d");
+    if (!id) return;
+    setRestoring(true);
+    fetch(`/api/diagnose?id=${encodeURIComponent(id)}`)
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) return setError(j.error ?? "結果を読み込めませんでした。");
+        setResult(j);
+        setName(j.input.name);
+        setAddress(j.input.address);
+        setGenre(j.input.genre);
+      })
+      .catch(() => setError("通信に失敗しました。"))
+      .finally(() => setRestoring(false));
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -44,7 +67,10 @@ export default function DiagnosePage() {
       });
       const j = await r.json();
       if (!r.ok) setError(j.error ?? "診断に失敗しました。");
-      else setResult(j);
+      else {
+        setResult(j);
+        window.history.replaceState(null, "", `/diagnose?d=${j.id}`);
+      }
     } catch {
       setError("通信に失敗しました。");
     } finally {
@@ -112,7 +138,9 @@ export default function DiagnosePage() {
         </div>
       )}
 
-      {result && <Report result={result} name={name} />}
+      {restoring && <Spinner label="立地調査の結果を読み込んでいます…" />}
+
+      {result && <Report result={result} name={result.input.name} />}
     </div>
   );
 }
@@ -127,7 +155,7 @@ function ScoreMeter({ score }: { score: number }) {
   );
 }
 
-function Report({ result, name }: { result: DiagnosisResult; name: string }) {
+function Report({ result, name }: { result: SavedDiagnosis; name: string }) {
   const { diagnosis: d, point, nearby, trend } = result;
   const avg = d.scores.reduce((n, s) => n + s.score, 0) / d.scores.length;
   const [open, setOpen] = useState<string | null>(d.scores[0]?.indicator ?? null);
@@ -150,6 +178,9 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
         <div className="mt-3 flex items-end gap-2">
           <span className="text-6xl leading-none font-black">{avg.toFixed(1)}</span>
           <span className="pb-1 text-sm text-ink-soft">/ 5　総合（5軸の平均）</span>
+        </div>
+        <div className="mt-3">
+          <AskAILink text="この立地についてAIに質問する" />
         </div>
       </div>
 
@@ -289,6 +320,15 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
         </div>
 
         <TrendCard bundle={trend} genre={trend.web.genre} trendFit={d.trendFit} />
+
+        <AskAI
+          kind="diagnosis"
+          target={result.id}
+          label={name}
+          returnPath={`/diagnose?d=${result.id}`}
+          intro="評価の理由、メニューの組み立て、どの店と組むと客が流れてくるかなど、AIがこの診断結果と街の商圏・ニュース・みんなの投稿をふまえて答えます。"
+          examples={["点数を一番上げるには、まず何を変えればいい？", "バズるメニューを、原価を抑えて出すには？", "近くのどの店と組むと、客を回してもらえる？"]}
+        />
 
         <p className="text-[11px] leading-relaxed text-ink-soft">⚠️ {d.caveats}</p>
         <p className="text-[10px] text-ink-soft">地図：国土地理院／店・施設の位置：© OpenStreetMap contributors</p>

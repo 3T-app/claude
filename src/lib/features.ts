@@ -296,49 +296,58 @@ async function generateLecture(o: {
   return lecture;
 }
 
-export const FREE_QUESTIONS_PER_AREA = 1;
+type ChatTurn = { role: "user" | "assistant"; content: string };
 
-export async function answerQuestion(opts: {
-  uid: string;
-  areaKey: string;
-  history: { role: "user" | "assistant"; content: string }[];
-  question: string;
-}): Promise<{ answer: string; remaining: number } | { paywall: true }> {
-  const usageKey = `${opts.uid}:${opts.areaKey}`;
-  const used = (await readDB()).chatUsage[usageKey] ?? 0;
-  if (used >= FREE_QUESTIONS_PER_AREA) return { paywall: true };
+const ANSWER_RULE =
+  "回答は300字程度で、会話で使える一言で締めくくってください。商圏と関係のない質問には、やんわり街の話に戻してください。";
 
-  let answer: string;
-  if (isDemoMode()) {
-    answer = demoChat(opts.question);
-  } else {
-    const { area, lecture } = await getLecture(opts.areaKey);
-    const insights = area ? await findInsights({ areaIds: [area.id], limit: 10 }) : [];
-    const system = [
-      await baseSystem("あなたの役割は、商圏の講義を読んだ人からの質問に答えることです。"),
-      "",
-      `<講義の内容>\n${JSON.stringify({ ...lecture, map: undefined })}\n</講義の内容>`,
-      `<みんなの投稿>\n${formatInsights(insights)}\n</みんなの投稿>`,
-      "",
-      "回答は300字程度で、会話で使える一言で締めくくってください。商圏と関係のない質問には、やんわり街の話に戻してください。",
-    ].join("\n");
-    const messages: Anthropic.Beta.BetaMessageParam[] = [
-      ...opts.history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: opts.question.slice(0, 500) },
-    ];
-    answer = await askText({ system, messages, effort: "low" });
-  }
-
-  const remaining = await updateDB((d) => {
-    d.chatUsage[usageKey] = (d.chatUsage[usageKey] ?? 0) + 1;
-    return Math.max(0, FREE_QUESTIONS_PER_AREA - d.chatUsage[usageKey]);
-  });
-  return { answer, remaining };
+function chatMessages(history: ChatTurn[], question: string): Anthropic.Beta.BetaMessageParam[] {
+  return [
+    ...history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+    { role: "user" as const, content: question.slice(0, 500) },
+  ];
 }
 
-export async function remainingQuestions(uid: string, areaKey: string): Promise<number> {
-  const used = (await readDB()).chatUsage[`${uid}:${areaKey}`] ?? 0;
-  return Math.max(0, FREE_QUESTIONS_PER_AREA - used);
+/** 商圏を学ぼう：街の講義を読んだ人の質問に答える（1回ごとに有料。支払いの確認は questions.ts） */
+export async function answerLectureQuestion(areaKey: string, question: string, history: ChatTurn[]): Promise<string> {
+  if (isDemoMode()) return demoChat(question);
+  const { area, lecture } = await getLecture(areaKey);
+  const insights = area ? await findInsights({ areaIds: [area.id], limit: 10 }) : [];
+  const system = [
+    await baseSystem("あなたの役割は、商圏の講義を読んだ人からの質問に答えることです。"),
+    "",
+    `<講義の内容>\n${JSON.stringify({ ...lecture, map: undefined })}\n</講義の内容>`,
+    `<みんなの投稿>\n${formatInsights(insights)}\n</みんなの投稿>`,
+    "",
+    ANSWER_RULE,
+  ].join("\n");
+  return askText({ system, messages: chatMessages(history, question), effort: "low" });
+}
+
+/** 立地調査：診断結果を見た人の質問に答える */
+export async function answerDiagnosisQuestion(
+  stored: { input: { name: string; address: string; genre: string }; result: DiagnosisResult },
+  question: string,
+  history: ChatTurn[],
+): Promise<string> {
+  if (isDemoMode()) return demoChat(question);
+  const { input, result } = stored;
+  const homeId = result.nearby[0]?.id;
+  const insights = homeId ? await findInsights({ areaIds: [homeId], limit: 8 }) : [];
+  const system = [
+    await baseSystem("あなたの役割は、飲食店の立地調査の結果を読んだ店主からの質問に答えることです。"),
+    "",
+    `<店>\n店名：${input.name}\n住所：${input.address}\n業態：${input.genre}\n</店>`,
+    `<立地調査の結果>\n${JSON.stringify(result.diagnosis)}\n</立地調査の結果>`,
+    result.areaMap ? `<この店がある街の商圏>\n${result.areaMap.zones.map((z) => z.name).join("／")}（${result.areaMap.areaName}）\n</この店がある街の商圏>` : "",
+    result.areaNews.length ? `<最近の街のニュース>\n${formatAreaNews(result.areaNews)}\n</最近の街のニュース>` : "",
+    `<近くの街のみんなの投稿>\n${formatInsights(insights)}\n</近くの街のみんなの投稿>`,
+    "",
+    "回答は300字程度で、店主が明日から試せる具体的な一手で締めくくってください。立地・商圏・メニュー・集客と関係のない質問には、やんわり話を戻してください。",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return askText({ system, messages: chatMessages(history, question), effort: "low" });
 }
 
 // ─────────────────────────────────────────────

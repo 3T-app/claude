@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import MapView, { type MapZone } from "@/components/MapView";
+import AskAI, { ASK_ANCHOR, AskAILink } from "@/components/AskAI";
 import PostCard from "@/components/PostCard";
 import { Card, DemoBanner, ErrorNote, Spinner } from "@/components/ui";
 import type { Area } from "@/lib/areas";
@@ -15,14 +16,8 @@ interface LectureResponse {
   areaKey: string;
   area: Area | null;
   lecture: Lecture;
-  remaining: number;
   demo: boolean;
   news: AreaNewsItem[];
-}
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
 }
 
 export default function AreaLecturePage({ params }: { params: Promise<{ key: string }> }) {
@@ -110,6 +105,9 @@ function LectureView({
             <b className="text-accent">この街の読みかた</b>　{lecture.angle}
           </p>
         )}
+        <div className="mt-3">
+          <AskAILink text={`${lecture.placeName}についてAIに質問する`} />
+        </div>
       </header>
 
       {data.demo && <DemoBanner />}
@@ -165,6 +163,9 @@ function LectureView({
             <p className="text-xs font-black text-accent">ひとことで言うと</p>
             <p className="mt-1 text-[15px] font-bold leading-relaxed">{lecture.conclusion}</p>
           </div>
+          <a href={`#${ASK_ANCHOR}`} className="block text-xs font-bold text-accent">
+            読んで気になったことは、AIに質問できます（1回100円）→
+          </a>
         </article>
 
         <div>
@@ -194,7 +195,18 @@ function LectureView({
 
         <Sources lecture={lecture} />
 
-        <ChatBox areaKey={data.areaKey} initialRemaining={data.remaining} placeName={lecture.placeName} />
+        <AskAI
+          kind="lecture"
+          target={data.areaKey}
+          label={lecture.placeName}
+          returnPath={`/learn/${encodeURIComponent(data.areaKey)}`}
+          intro={`講義で気になったこと、デートで話したいこと、${lecture.placeName}の店選びなど、AIがこの街の講義とみんなの投稿をふまえて答えます。`}
+          examples={[
+            `${lecture.placeName}でデートするなら、どの順で歩くといい？`,
+            "この街で今いちばん伸びている商圏はどこ？",
+            "講義の中で、会話で一番ウケそうな話は？",
+          ]}
+        />
 
         {area && (
           <div>
@@ -502,117 +514,5 @@ function Sources({ lecture }: { lecture: Lecture }) {
         ))}
       </ul>
     </details>
-  );
-}
-
-function ChatBox({ areaKey, initialRemaining, placeName }: { areaKey: string; initialRemaining: number; placeName: string }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [remaining, setRemaining] = useState(initialRemaining);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [paywall, setPaywall] = useState(false);
-
-  async function send() {
-    const question = input.trim();
-    if (!question || loading) return;
-    if (remaining <= 0) {
-      setPaywall(true);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    const history = messages;
-    setMessages([...history, { role: "user", content: question }]);
-    setInput("");
-    try {
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ areaKey, question, history }),
-      });
-      const j = await r.json();
-      if (r.status === 402) {
-        setRemaining(0);
-        setPaywall(true);
-        setMessages(history);
-        setInput(question);
-      } else if (!r.ok) {
-        setError(j.error ?? "回答を取得できませんでした。");
-        setMessages(history);
-        setInput(question);
-      } else {
-        setMessages([...history, { role: "user", content: question }, { role: "assistant", content: j.answer }]);
-        setRemaining(j.remaining);
-      }
-    } catch {
-      setError("通信に失敗しました。");
-      setMessages(history);
-      setInput(question);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Card>
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-black">🤖 {placeName}についてAIに質問</h2>
-        <span className={`text-xs font-bold ${remaining > 0 ? "text-accent" : "text-ink-soft"}`}>
-          {remaining > 0 ? `無料であと${remaining}回` : "無料分は終了"}
-        </span>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <p
-              className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed ${
-                m.role === "user" ? "bg-accent text-white" : "bg-background"
-              }`}
-            >
-              {m.content}
-            </p>
-          </div>
-        ))}
-        {loading && <p className="text-xs text-ink-soft">AIが考えています…</p>}
-        {error && <p className="text-xs text-red-600">{error}</p>}
-      </div>
-
-      <form
-        className="mt-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="例：なぜ東口と西口で客層が違うの？"
-          className="min-w-0 flex-1 rounded-xl border border-line bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        <button disabled={loading} className="rounded-xl bg-foreground px-4 text-sm font-bold text-white disabled:opacity-40">
-          送信
-        </button>
-      </form>
-
-      {paywall && (
-        <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/40" onClick={() => setPaywall(false)}>
-          <div className="w-full max-w-md rounded-t-3xl bg-card p-6" onClick={(e) => e.stopPropagation()}>
-            <p className="text-lg font-black">続きの質問はプレミアムで</p>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              無料の質問は1つの街につき1回までです。プレミアムプランでは、どの街でも質問し放題になります。
-            </p>
-            <button disabled className="mt-4 w-full rounded-xl bg-accent py-3 font-bold text-white opacity-60">
-              プレミアムに登録（準備中）
-            </button>
-            <button onClick={() => setPaywall(false)} className="mt-2 w-full py-2 text-sm text-ink-soft">
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
-    </Card>
   );
 }
