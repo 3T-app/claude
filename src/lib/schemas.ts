@@ -15,6 +15,10 @@ function obj(properties: Record<string, unknown>) {
 
 export const RELATION_TYPES = ["補完（はしご）", "補完（呼び込み・時間帯）", "集積", "価格競争"] as const;
 
+/** 「もっと詳しく」の中で最初に開いておく項目（＝その街の分析の主役） */
+export const FOCUS_TYPES = ["支える人", "商圏の割れ方", "店と店の関係", "歴史と名残", "新しい勢力", "通りの違い", "昼と夜"] as const;
+export type FocusType = (typeof FOCUS_TYPES)[number];
+
 const anchor = obj({
   lat: { type: "number", description: "商圏の中心の緯度（地図の店データから推定）" },
   lng: { type: "number", description: "商圏の中心の経度" },
@@ -25,7 +29,21 @@ export const lectureSchema = obj({
   isTokyo: { type: "boolean", description: "対象が東京都内の場所ならtrue" },
   placeName: str,
   headline: { type: "string", description: "この街の商圏を一言で表すキャッチ（30字以内）" },
-  conclusion: { type: "string", description: "まとめ。「つまり〇〇は、昼は〜、夜は〜で栄える商圏だ」のように結論を2〜4文で" },
+  angle: { type: "string", description: "この街を読む切り口。他の街と違う、この街ならではの見方を一文で（例：地形、東西の逆転、ブランドの循環）" },
+  focus: { type: "string", enum: [...FOCUS_TYPES], description: "この街の分析で一番の主役になる項目" },
+  chapters: {
+    type: "array",
+    description: "読み物としての本文。この街の切り口に沿った3〜4章。見出しはこの街だけの具体的な言葉にし、「商圏の割れ方」「歴史」のような汎用の見出しは使わない",
+    items: obj({
+      title: { type: "string", description: "この街だけの見出し（20字以内）" },
+      body: { type: "string", description: "3〜5文。具体的な店・通り・年を入れ、語り口に変化をつける" },
+    }),
+  },
+  conclusion: { type: "string", description: "ひとことで言うとどんな街か。2〜3文。決まった言い回しを避け、この街の切り口に合った言葉で" },
+  whatsNew: {
+    ...strArr,
+    description: "前回の講義からの変化（新しい投稿・リアクション・ニュース・調査メモで分かったこと）を1〜3個。前回がない、または変化がなければ空配列",
+  },
   supporters: {
     type: "array",
     description: "町を支える人・世帯とそのニーズ。統計とニュースを根拠に3〜5個",
@@ -92,7 +110,11 @@ export const lectureValidator = z.object({
   isTokyo: z.boolean(),
   placeName: z.string(),
   headline: z.string(),
+  angle: z.string(),
+  focus: z.enum(FOCUS_TYPES),
+  chapters: z.array(z.object({ title: z.string(), body: z.string() })),
   conclusion: z.string(),
+  whatsNew: z.array(z.string()),
   supporters: z.array(z.object({ who: z.string(), need: z.string(), evidence: z.string() })),
   zones: z.array(
     z.object({
@@ -136,6 +158,9 @@ export interface Lecture extends LectureAI {
   /** Claude Code の事前分析を表示しているとき */
   analyzedBy?: "claude-code";
   analyzedAt?: string;
+  /** 日付つきの更新履歴（毎日のニュース巡回・自動分析で追加される） */
+  updates: { date: string; text: string }[];
+  generatedAt?: string;
 }
 
 // ── 立地診断 ──

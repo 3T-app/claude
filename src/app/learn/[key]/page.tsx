@@ -8,7 +8,7 @@ import { Card, DemoBanner, ErrorNote, Spinner } from "@/components/ui";
 import type { Area } from "@/lib/areas";
 import type { PublicPost } from "@/lib/posts";
 import type { AreaNewsItem } from "@/lib/news";
-import type { Lecture } from "@/lib/schemas";
+import type { FocusType, Lecture } from "@/lib/schemas";
 import { zoneColor } from "@/lib/zoneColors";
 
 interface LectureResponse {
@@ -105,6 +105,11 @@ function LectureView({
         <p className="text-[11px] font-bold tracking-widest text-accent">商圏をうんちくに</p>
         <h1 className="mt-1 text-3xl font-black">{lecture.placeName}</h1>
         <p className="mt-2 text-base font-bold leading-snug">{lecture.headline}</p>
+        {lecture.angle && (
+          <p className="mt-2 border-l-2 border-accent pl-2 text-xs leading-relaxed text-ink-soft">
+            <b className="text-accent">この街の読みかた</b>　{lecture.angle}
+          </p>
+        )}
       </header>
 
       {data.demo && <DemoBanner />}
@@ -145,117 +150,22 @@ function LectureView({
       )}
 
       <div className="space-y-4 px-4">
-        <Card className="border-foreground">
-          <h2 className="text-sm font-black text-accent">まとめ</h2>
-          <p className="mt-2 text-[15px] font-bold leading-relaxed">{lecture.conclusion}</p>
-        </Card>
+        {lecture.updates.length > 0 && <Updates updates={lecture.updates} />}
 
-        <Section title="① 町を支える人とニーズ">
-          <ul className="space-y-2.5">
-            {lecture.supporters.map((s, i) => (
-              <li key={i} className="text-sm leading-relaxed">
-                <b>{s.who}</b>：{s.need}
-                <br />
-                <span className="text-xs text-ink-soft">根拠：{s.evidence}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
+        <TodayPickup lecture={lecture} seed={data.areaKey} />
 
-        <Section title="② 商圏の割れ方">
-          <ul className="space-y-3">
-            {lecture.zones.map((z, i) => (
-              <li key={i} className="text-sm leading-relaxed">
-                <button className="w-full text-left" onClick={() => setActive(active === i + 1 ? null : i + 1)}>
-                  <span className="flex items-center gap-1.5 font-black">
-                    <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: zoneColor(i) }} />
-                    {i + 1}. {z.name}
-                    <span className="rounded bg-background px-1.5 text-[10px] font-bold text-ink-soft">{z.peak}</span>
-                  </span>
-                  <span className="text-xs text-ink-soft">{z.area}</span>
-                  <br />
-                  {z.character}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        <Section title="③ 店と店の関係（補完・集積・価格競争）">
-          <ul className="space-y-3">
-            {lecture.relations.map((r, i) => (
-              <li key={i} className="rounded-xl bg-background p-3 text-sm leading-relaxed">
-                <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{r.type}</span>
-                <p className="mt-1.5 font-bold">{r.places.join(" → ")}</p>
-                <p className="text-xs">{r.flow}</p>
-                <p className="mt-1 text-xs text-ink-soft">
-                  使う人：{r.who}／効果：{r.effect}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        {lecture.contrasts.length > 0 && (
-          <Section title="④ 出口・通りごとの違い">
-            <ul className="space-y-2.5">
-              {lecture.contrasts.map((c, i) => (
-                <li key={i} className="text-sm leading-relaxed">
-                  <b>
-                    {c.sideA} と {c.sideB}
-                  </b>
-                  <br />
-                  {c.difference}
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
-
-        <Section title="⑤ 町の歴史と、今に残る名残">
-          <ol className="space-y-2.5 border-l-2 border-line pl-3">
-            {lecture.history.map((h, i) => (
-              <li key={i} className="text-sm leading-relaxed">
-                <span className="text-xs font-bold text-accent">{h.period}</span>
-                <br />
-                {h.event}
-                <br />
-                <span className="text-xs text-ink-soft">名残：{h.remnant}</span>
-              </li>
-            ))}
-          </ol>
-        </Section>
-
-        <Section title="⑥ 新しい勢力と今の魅力">
-          <ul className="space-y-2.5">
-            {lecture.newForces.map((n, i) => (
-              <li key={i} className="text-sm leading-relaxed">
-                <span className="text-xs font-bold text-accent">{n.period}</span>　{n.event}
-                <br />
-                <span className="text-xs text-ink-soft">{n.effect}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        {data.news.length > 0 && (
-          <Section title="📰 最近の街のニュース">
-            <NewsList items={data.news} />
-          </Section>
-        )}
-
-        <Section title="⑦ 昼と夜">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-background p-2.5">
-              <p className="text-xs font-bold">☀️ 昼</p>
-              <p className="mt-1 text-xs leading-relaxed">{lecture.dayNight.day}</p>
-            </div>
-            <div className="rounded-xl bg-background p-2.5">
-              <p className="text-xs font-bold">🌙 夜</p>
-              <p className="mt-1 text-xs leading-relaxed">{lecture.dayNight.night}</p>
-            </div>
+        <article className="space-y-5 rounded-2xl bg-card px-4 py-5">
+          {lecture.chapters.map((c, i) => (
+            <section key={i}>
+              <h2 className="text-[17px] font-black leading-snug">{c.title}</h2>
+              <p className="mt-1.5 text-[15px] leading-[1.9]">{c.body}</p>
+            </section>
+          ))}
+          <div className="border-t border-line pt-4">
+            <p className="text-xs font-black text-accent">ひとことで言うと</p>
+            <p className="mt-1 text-[15px] font-bold leading-relaxed">{lecture.conclusion}</p>
           </div>
-        </Section>
+        </article>
 
         <div>
           <h2 className="mb-2 text-sm font-black">💬 会話デッキ：そのまま使えるうんちく</h2>
@@ -269,6 +179,14 @@ function LectureView({
             ))}
           </div>
         </div>
+
+        {data.news.length > 0 && (
+          <Section title="📰 最近の街のニュース">
+            <NewsList items={data.news} />
+          </Section>
+        )}
+
+        <Details lecture={lecture} active={active} setActive={setActive} />
 
         <Section title="🚶 商圏を体感する歩き方">
           <p className="text-sm leading-relaxed">{lecture.walkRoute}</p>
@@ -300,6 +218,226 @@ function LectureView({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** 日本時間で今日が何日目か（ピックアップを毎日入れ替えるため） */
+function dayNumber(): number {
+  return Math.floor((Date.now() + 9 * 60 * 60 * 1000) / 86_400_000);
+}
+
+function seedOf(s: string): number {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+function Updates({ updates }: { updates: Lecture["updates"] }) {
+  const [first, ...rest] = updates;
+  const item = (u: Lecture["updates"][number]) => (
+    <li key={u.date + u.text} className="text-sm leading-relaxed">
+      <span className="mr-1 text-[11px] font-bold text-accent">{u.date.slice(5).replace("-", "/")}</span>
+      {u.text}
+    </li>
+  );
+  return (
+    <Card className="border-accent">
+      <h2 className="text-sm font-black text-accent">🆕 この街のアップデート</h2>
+      <ul className="mt-1.5 space-y-1.5">{item(first)}</ul>
+      {rest.length > 0 && (
+        <details className="mt-1.5">
+          <summary className="cursor-pointer text-xs font-bold text-ink-soft">これまでの更新（{rest.length}件）</summary>
+          <ul className="mt-1.5 space-y-1.5">{rest.map(item)}</ul>
+        </details>
+      )}
+      <p className="mt-2 text-[10px] text-ink-soft">投稿・リアクション・毎朝のニュース巡回から、AIが街の変化を書き足しています</p>
+    </Card>
+  );
+}
+
+/** 講義の中から毎日1つ、別の角度の話を取り出す（同じ日でも街ごとに違うものが出る） */
+function TodayPickup({ lecture, seed }: { lecture: Lecture; seed: string }) {
+  const pool = [
+    ...lecture.history.map((h) => ({ tag: "名残を探す", title: h.remnant, body: `${h.period}：${h.event}` })),
+    ...lecture.relations.map((r) => ({ tag: r.type, title: r.places.join(" → "), body: `${r.flow}。${r.effect}` })),
+    ...lecture.zones.map((z) => ({ tag: `${z.peak}の商圏`, title: z.name, body: z.character })),
+    ...lecture.contrasts.map((c) => ({ tag: "見比べる", title: `${c.sideA} と ${c.sideB}`, body: c.difference })),
+    ...lecture.newForces.map((n) => ({ tag: "新しい勢力", title: n.event, body: n.effect })),
+    ...lecture.supporters.map((s) => ({ tag: "この街に来る人", title: s.who, body: `${s.need}（${s.evidence}）` })),
+  ];
+  if (pool.length === 0) return null;
+  const pick = pool[(dayNumber() + seedOf(seed)) % pool.length];
+  return (
+    <Card>
+      <p className="text-[11px] font-bold text-ink-soft">
+        📅 今日のピックアップ<span className="ml-1.5 rounded bg-background px-1.5 text-[10px]">{pick.tag}</span>
+      </p>
+      <p className="mt-1 font-black leading-snug">{pick.title}</p>
+      <p className="mt-1 text-sm leading-relaxed">{pick.body}</p>
+    </Card>
+  );
+}
+
+/** 項目別の詳しい分析。その街の主役（focus）を先頭に置いて開いておく */
+function Details({
+  lecture,
+  active,
+  setActive,
+}: {
+  lecture: Lecture;
+  active: number | null;
+  setActive: (n: number | null) => void;
+}) {
+  const sections: { key: FocusType; title: string; body: React.ReactNode; show: boolean }[] = [
+    {
+      key: "支える人",
+      title: "街を支える人とニーズ",
+      show: lecture.supporters.length > 0,
+      body: (
+        <ul className="space-y-2.5">
+          {lecture.supporters.map((s, i) => (
+            <li key={i} className="text-sm leading-relaxed">
+              <b>{s.who}</b>：{s.need}
+              <br />
+              <span className="text-xs text-ink-soft">根拠：{s.evidence}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "商圏の割れ方",
+      title: "地図の色分け（商圏の割れ方）",
+      show: lecture.zones.length > 0,
+      body: (
+        <ul className="space-y-3">
+          {lecture.zones.map((z, i) => (
+            <li key={i} className="text-sm leading-relaxed">
+              <button className="w-full text-left" onClick={() => setActive(active === i + 1 ? null : i + 1)}>
+                <span className="flex items-center gap-1.5 font-black">
+                  <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: zoneColor(i) }} />
+                  {i + 1}. {z.name}
+                  <span className="rounded bg-background px-1.5 text-[10px] font-bold text-ink-soft">{z.peak}</span>
+                </span>
+                <span className="text-xs text-ink-soft">{z.area}</span>
+                <br />
+                {z.character}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "店と店の関係",
+      title: "店と店の関係（補完・集積・価格競争）",
+      show: lecture.relations.length > 0,
+      body: (
+        <ul className="space-y-3">
+          {lecture.relations.map((r, i) => (
+            <li key={i} className="rounded-xl bg-background p-3 text-sm leading-relaxed">
+              <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{r.type}</span>
+              <p className="mt-1.5 font-bold">{r.places.join(" → ")}</p>
+              <p className="text-xs">{r.flow}</p>
+              <p className="mt-1 text-xs text-ink-soft">
+                使う人：{r.who}／効果：{r.effect}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "通りの違い",
+      title: "出口・通りごとの違い",
+      show: lecture.contrasts.length > 0,
+      body: (
+        <ul className="space-y-2.5">
+          {lecture.contrasts.map((c, i) => (
+            <li key={i} className="text-sm leading-relaxed">
+              <b>
+                {c.sideA} と {c.sideB}
+              </b>
+              <br />
+              {c.difference}
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "歴史と名残",
+      title: "街の歴史と、今に残る名残",
+      show: lecture.history.length > 0,
+      body: (
+        <ol className="space-y-2.5 border-l-2 border-line pl-3">
+          {lecture.history.map((h, i) => (
+            <li key={i} className="text-sm leading-relaxed">
+              <span className="text-xs font-bold text-accent">{h.period}</span>
+              <br />
+              {h.event}
+              <br />
+              <span className="text-xs text-ink-soft">名残：{h.remnant}</span>
+            </li>
+          ))}
+        </ol>
+      ),
+    },
+    {
+      key: "新しい勢力",
+      title: "新しい勢力と今の魅力",
+      show: lecture.newForces.length > 0,
+      body: (
+        <ul className="space-y-2.5">
+          {lecture.newForces.map((n, i) => (
+            <li key={i} className="text-sm leading-relaxed">
+              <span className="text-xs font-bold text-accent">{n.period}</span>　{n.event}
+              <br />
+              <span className="text-xs text-ink-soft">{n.effect}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    {
+      key: "昼と夜",
+      title: "昼と夜",
+      show: true,
+      body: (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-background p-2.5">
+            <p className="text-xs font-bold">☀️ 昼</p>
+            <p className="mt-1 text-xs leading-relaxed">{lecture.dayNight.day}</p>
+          </div>
+          <div className="rounded-xl bg-background p-2.5">
+            <p className="text-xs font-bold">🌙 夜</p>
+            <p className="mt-1 text-xs leading-relaxed">{lecture.dayNight.night}</p>
+          </div>
+        </div>
+      ),
+    },
+  ];
+  const ordered = [...sections.filter((x) => x.key === lecture.focus), ...sections.filter((x) => x.key !== lecture.focus)];
+  return (
+    <div>
+      <h2 className="mb-2 text-sm font-black">🔍 もっと詳しく</h2>
+      <div className="space-y-2">
+        {ordered
+          .filter((x) => x.show)
+          .map((x) => (
+            <details key={x.key} open={x.key === lecture.focus} className="group rounded-2xl border border-line bg-card px-4 py-3">
+              <summary className="cursor-pointer list-none text-sm font-black text-accent">
+                <span className="mr-1 inline-block transition group-open:rotate-90">›</span>
+                {x.title}
+                {x.key === lecture.focus && (
+                  <span className="ml-1.5 rounded bg-accent px-1.5 py-0.5 text-[10px] text-white">この街の主役</span>
+                )}
+              </summary>
+              <div className="mt-2">{x.body}</div>
+            </details>
+          ))}
       </div>
     </div>
   );

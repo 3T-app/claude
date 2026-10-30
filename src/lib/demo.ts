@@ -32,7 +32,14 @@ export function demoLecture(area: Area | null, place: string): Lecture {
     isTokyo: true,
     placeName: area?.name ?? place,
     headline: area?.catch ?? `${place}の商圏を歩いてみよう`,
-    conclusion: `【デモ表示】APIキーを設定すると、「つまり${area?.name ?? place}は、昼は〜、夜は〜で栄える商圏だ」という結論を、統計・地図の店・歴史・ニュースから導きます。`,
+    angle: "【デモ表示】APIキーを設定すると、この街ならではの切り口をAIが選びます。",
+    focus: "商圏の割れ方",
+    chapters: [
+      { title: "デモ表示", body: "APIキーを設定すると、統計・地図の店・歴史・ニュースから、この街だけの読み物をAIが書きます。" },
+    ],
+    conclusion: `【デモ表示】APIキーを設定すると、${area?.name ?? place}がどんな街かを、統計・地図の店・歴史・ニュースからひとことでまとめます。`,
+    whatsNew: [],
+    updates: [],
     supporters: [
       { who: "デモ表示", need: "APIキー設定後に、町を支える世帯とニーズを分析します", evidence: "e-Stat の統計とニュース" },
     ],

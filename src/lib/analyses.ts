@@ -8,9 +8,11 @@ import { DATA_DIR } from "./store";
 // Claude Code が Web で調べて書いた街ごとの分析（data/analyses/<id>.json）。
 // APIキーがなくても講義として表示でき、キーがあるときは自動分析の土台になる。
 
-export const storedAnalysisValidator = lectureValidator.extend({
+export const storedAnalysisValidator = lectureValidator.omit({ whatsNew: true }).extend({
   sources: z.array(z.object({ title: z.string(), url: z.string() })),
   analyzedAt: z.string(),
+  /** 毎日のニュース巡回で書き足す更新履歴（新しい順） */
+  updates: z.array(z.object({ date: z.string(), text: z.string() })).default([]),
 });
 export type StoredAnalysis = z.infer<typeof storedAnalysisValidator>;
 
@@ -34,9 +36,11 @@ export async function loadAnalysisLecture(areaId: string): Promise<Lecture | nul
   const a = await readAnalysis(areaId);
   const area = getArea(areaId);
   if (!a || !area) return null;
-  const { sources, analyzedAt, ...ai } = a;
+  const { sources, analyzedAt, updates, ...ai } = a;
   return {
-    ...(ai as LectureAI),
+    ...(ai as Omit<LectureAI, "whatsNew">),
+    whatsNew: [],
+    updates: [...updates].sort((x, y) => y.date.localeCompare(x.date)),
     center: { lat: area.lat, lng: area.lng },
     map: {
       zones: ai.zones.map((z) => ({ polygon: null, circle: z.anchor })),
@@ -52,6 +56,8 @@ export async function loadAnalysisLecture(areaId: string): Promise<Lecture | nul
 /** 自動分析に渡す要約（事前の分析として） */
 export function formatAnalysis(a: StoredAnalysis): string {
   return [
+    `切り口：${a.angle}`,
+    `本文：${a.chapters.map((c) => `【${c.title}】${c.body}`).join(" ")}`,
     `まとめ：${a.conclusion}`,
     `支える人：${a.supporters.map((s) => `${s.who}（${s.need}）`).join("／")}`,
     `商圏の割れ方：${a.zones.map((z) => `${z.name}［${z.area}］${z.character}`).join("／")}`,

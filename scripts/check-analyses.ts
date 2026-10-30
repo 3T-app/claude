@@ -5,7 +5,10 @@ import path from "path";
 import { AREAS, distanceM } from "../src/lib/areas";
 import { storedAnalysisValidator } from "../src/lib/analyses";
 
+const GENERIC_TITLES = ["歴史", "町の歴史", "街の歴史", "商圏の割れ方", "新しい勢力", "昼と夜", "まとめ", "店と店の関係", "町を支える人"];
+
 (async () => {
+  const templated: string[] = [];
   const dir = path.join(process.cwd(), "data", "analyses");
   let problems = 0;
   const done: string[] = [];
@@ -31,6 +34,14 @@ import { storedAnalysisValidator } from "../src/lib/analyses";
     }
     if (a.relations.length < 3) issues.push(`店と店の関係 ${a.relations.length}`);
     if (a.unchiku.length !== 3) issues.push(`うんちく ${a.unchiku.length}`);
+    // 講義がテンプレートにならないように：切り口・街ごとの見出し・決まり文句でないまとめ
+    if (a.angle.length < 15) issues.push("切り口が短い");
+    if (a.chapters.length < 3 || a.chapters.length > 5) issues.push(`章の数 ${a.chapters.length}`);
+    for (const c of a.chapters) {
+      if (GENERIC_TITLES.some((g) => c.title.replace(/[「」、。]/g, "") === g)) issues.push(`汎用の見出し「${c.title}」`);
+      if (c.body.length < 80) issues.push(`章「${c.title}」が短い`);
+    }
+    if (/^つまり.+は、昼は/.test(a.conclusion)) templated.push(area.id);
     if (issues.length) {
       problems++;
       console.log(`NG ${area.id}: ${issues.join(" / ")}`);
@@ -39,5 +50,10 @@ import { storedAnalysisValidator } from "../src/lib/analyses";
   const missing = AREAS.filter((a) => !done.includes(a.id)).map((a) => a.id);
   console.log(`OK ${done.length}/${AREAS.length}`);
   if (missing.length) console.log(`未作成・要修正：${missing.join(", ")}`);
+  // 「つまり〇〇は、昼は〜」の型は、昼夜で語るのが合う街だけに使う（多すぎたら警告）
+  if (templated.length > 6) {
+    problems++;
+    console.log(`NG まとめが「つまり〇〇は、昼は〜」の型の街が ${templated.length} か所（6か所まで）：${templated.join(", ")}`);
+  }
   process.exitCode = problems ? 1 : 0;
 })();

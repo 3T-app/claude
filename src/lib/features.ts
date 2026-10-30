@@ -25,7 +25,7 @@ import { ALL_GENRES, GENRE_SLUGS } from "./constants";
 import { cityStats, formatCityStats, type CityStats } from "./sources/estat";
 import { competition, composition, formatCompetition, formatComposition, type Competition } from "./sources/hotpepper";
 import { formatYouTube, youtubeTrends, type YouTubeVideo } from "./sources/youtube";
-import { cached, DATA_DIR, INDICATORS, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
+import { cached, DATA_DIR, INDICATORS, reactionCount, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -43,7 +43,30 @@ async function safe<T>(label: string, p: Promise<T>): Promise<T | null> {
 // 商圏を学ぼう：街の講義
 // ─────────────────────────────────────────────
 
-const LECTURE_TTL = 14 * DAY;
+/** 材料が変わらなくても、この日数がたてば作り直す */
+const LECTURE_MAX_AGE = 7 * DAY;
+const MAX_UPDATES = 12;
+
+/** 日本時間の日付（YYYY-MM-DD）。講義は1日1回まで作り直す */
+export function todayJST(now = Date.now()): string {
+  return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+interface CachedLecture {
+  data: Lecture;
+  postCount: number | string;
+  createdAt: string;
+}
+
+/** 更新履歴をまとめる（同じ文は1つに、新しい順、最大12件） */
+function mergeUpdates(...lists: { date: string; text: string }[][]): { date: string; text: string }[] {
+  const seen = new Set<string>();
+  return lists
+    .flat()
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .filter((u) => (seen.has(u.text) ? false : (seen.add(u.text), true)))
+    .slice(0, MAX_UPDATES);
+}
 
 function hashText(t: string): string {
   let h = 0;
@@ -93,7 +116,7 @@ export function buildMap(ai: LectureAI, pois: Poi[]): Lecture["map"] {
 /** 作成済みの講義か、Claude Code の事前分析があれば返す（立地調査で使う。なければ作らない） */
 async function cachedLecture(areaId: string): Promise<Lecture | null> {
   const c = (await readDB()).lectures[areaId];
-  if (c && "conclusion" in (c.data as object)) return c.data as Lecture;
+  if (c && "chapters" in (c.data as object)) return c.data as Lecture;
   return loadAnalysisLecture(areaId);
 }
 
@@ -121,64 +144,105 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
   const stored = area ? await loadAnalysisLecture(area.id) : null;
   if (isDemoMode()) return { area, lecture: stored ?? demoLecture(area, place) };
 
-  const [insights, note] = await Promise.all([
+  const [insights, note, news, prior] = await Promise.all([
     area ? findInsights({ areaIds: [area.id], limit: 12 }) : Promise.resolve([]),
     area ? getAreaNote(area.id) : Promise.resolve(""),
+    area ? readAreaNews(area.id, 10) : Promise.resolve([]),
+    area ? readAnalysis(area.id) : Promise.resolve(null),
   ]);
-  const version = `${insights.length}:${hashText(note)}`;
+  // 講義の材料（投稿とリアクション、調査メモ、ニュース、事前分析の更新）が変わったかどうか
+  const version = hashText(
+    JSON.stringify([
+      insights.map((p) => [p.id, reactionCount(p)]),
+      note,
+      news.map((n) => n.url),
+      prior?.analyzedAt,
+      prior?.updates.length,
+    ]),
+  );
   const db = await readDB();
-  const cached_ = db.lectures[cacheKey] as { data: Lecture; postCount: number | string; createdAt: string } | undefined;
-  // 投稿や調査メモが増えたら作り直す（＝投稿がたまるほど講義が育つ）
-  if (
-    cached_ &&
-    Date.now() - Date.parse(cached_.createdAt) < LECTURE_TTL &&
-    String(cached_.postCount) === version &&
-    "conclusion" in (cached_.data as object)
-  ) {
-    return { area, lecture: cached_.data };
-  }
+  const prev = db.lectures[cacheKey] as CachedLecture | undefined;
+  const prevLecture = prev && "chapters" in (prev.data as object) ? prev.data : null;
 
-  // Claude Code の事前分析があればすぐに返し、地図の店データを使った分析は裏で作って次回から出す
-  if (stored) {
-    if (!generating.has(cacheKey)) {
+  // 毎日1回、材料が変わっていれば作り直す（＝投稿・ニュースがたまるほど講義が育つ）。
+  // 材料が同じでも7日たてば作り直す。作り直している間は前の講義を出す。
+  const fresh =
+    prevLecture &&
+    (todayJST(Date.parse(prev!.createdAt)) === todayJST() ||
+      (String(prev!.postCount) === version && Date.now() - Date.parse(prev!.createdAt) < LECTURE_MAX_AGE));
+  if (prevLecture && fresh) return { area, lecture: withStoredUpdates(prevLecture, stored) };
+
+  const shown = prevLecture ?? stored;
+  if (shown) {
+    // 失敗したときに開くたび作り直さないよう、試すのは1時間に1回まで
+    if (!generating.has(cacheKey) && Date.now() - (lastTried.get(cacheKey) ?? 0) > 60 * 60 * 1000) {
       generating.add(cacheKey);
-      void generateLecture(area, place, cacheKey, version, insights, note)
+      lastTried.set(cacheKey, Date.now());
+      void generateLecture({ area, place, cacheKey, version, insights, note, news, prior, previous: shown })
         .catch((err) => console.warn("[lecture]", err instanceof Error ? err.message : err))
         .finally(() => generating.delete(cacheKey));
     }
-    return { area, lecture: stored };
+    return { area, lecture: withStoredUpdates(shown, stored) };
   }
-  return { area, lecture: await generateLecture(area, place, cacheKey, version, insights, note) };
+  return {
+    area,
+    lecture: await generateLecture({ area, place, cacheKey, version, insights, note, news, prior, previous: null }),
+  };
+}
+
+/** 毎朝のニュース巡回で事前分析に足された更新を、作成済みの講義にも重ねる */
+function withStoredUpdates(lecture: Lecture, stored: Lecture | null): Lecture {
+  if (!stored || lecture === stored) return lecture;
+  return { ...lecture, updates: mergeUpdates(lecture.updates ?? [], stored.updates) };
 }
 
 const generating = new Set<string>();
+const lastTried = new Map<string, number>();
 
-async function generateLecture(
-  area: Area | null,
-  place: string,
-  cacheKey: string,
-  version: string,
-  insights: Awaited<ReturnType<typeof findInsights>>,
-  note: string,
-): Promise<Lecture> {
+/** 前回の講義のうち、変化を比べるのに要る部分だけを渡す */
+function formatPrevious(l: Lecture): string {
+  return [
+    `作成：${l.generatedAt ?? l.analyzedAt ?? "不明"}`,
+    `切り口：${l.angle}`,
+    `章：${l.chapters.map((c) => c.title).join("／")}`,
+    `まとめ：${l.conclusion}`,
+    `商圏：${l.zones.map((z) => z.name).join("／")}`,
+    `新しい勢力：${l.newForces.map((f) => `${f.period} ${f.event}`).join("／")}`,
+    l.updates?.length ? `これまでの更新：${l.updates.map((u) => `${u.date} ${u.text}`).join("／")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function generateLecture(o: {
+  area: Area | null;
+  place: string;
+  cacheKey: string;
+  version: string;
+  insights: Awaited<ReturnType<typeof findInsights>>;
+  note: string;
+  news: AreaNewsItem[];
+  prior: Awaited<ReturnType<typeof readAnalysis>>;
+  previous: Lecture | null;
+}): Promise<Lecture> {
+  const { area, place, insights, note, news, prior, previous } = o;
   const point = area ? { lat: area.lat, lng: area.lng, label: area.name } : await geocode(place);
   const center = point ? { lat: point.lat, lng: point.lng } : null;
   const radius = area?.category === "terminal" || area?.category === "tama" ? 1000 : 800;
 
-  const [pois, mix, stats, research, prior, news] = await Promise.all([
+  const [pois, mix, stats, research] = await Promise.all([
     center ? safe("osm", poisAround(center.lat, center.lng, radius)) : Promise.resolve(null),
     center ? safe("hotpepper", composition(center.lat, center.lng)) : Promise.resolve(null),
     safe("estat", cityStats(area?.city, point?.label, place)),
-    safe("research", researchTown(place, cacheKey)),
-    area ? readAnalysis(area.id) : Promise.resolve(null),
-    area ? readAreaNews(area.id, 10) : Promise.resolve([]),
+    safe("research", researchTown(place, o.cacheKey)),
   ]);
 
   const system = await baseSystem(
-    "あなたの役割は、指定された東京の街の商圏を、運営の「街の商圏の分析手順」とお手本（池袋）に沿って分析し、初心者にも分かる講義にすることです。",
+    "あなたの役割は、指定された東京の街の商圏を、運営の「街の商圏の分析手順」とお手本（池袋）に沿って分析し、初心者にも分かる読み物の講義にすることです。",
   );
   const content = [
     `分析する街：${place}${center ? `（中心：緯度${center.lat.toFixed(5)} 経度${center.lng.toFixed(5)}、半径${radius}mを分析）` : ""}`,
+    `今日の日付：${todayJST()}`,
     area ? `<運営が特に見てほしいポイント>\n${area.hints.map((h) => `- ${h}`).join("\n")}\n</運営が特に見てほしいポイント>` : "",
     note ? `<運営の現地調査メモ（最も信頼できる事実。必ず反映する）>\n${note}\n</運営の現地調査メモ>` : "",
     `<区市の統計（e-Stat）>\n${formatCityStats(stats)}\n</区市の統計>`,
@@ -188,13 +252,18 @@ async function generateLecture(
     news.length ? `<最近の街のニュース（毎日の巡回）>\n${formatAreaNews(news)}\n</最近の街のニュース>` : "",
     `<Web・ニュースの調査>\n${research?.text ?? "（取得できませんでした）"}\n</Web・ニュースの調査>`,
     `<この街のみんなの投稿（AIが読み取った気づき）>\n${formatInsights(insights)}\n</みんなの投稿>`,
+    previous ? `<前回の講義（ここからの変化を whatsNew に書く）>\n${formatPrevious(previous)}\n</前回の講義>` : "",
     "",
     "分析の進め方：",
     "- 運営の「街の商圏の分析手順」の1〜8の順に考え、お手本（池袋）と同じ具体性で書く。店や施設は実在の名前で書く。",
+    "- 書き方は運営の教えの「講義の書き方」に従う。この街ならではの切り口（angle）を一つ決め、chapters はその切り口に沿った読み物にする。どの街にも使える決まり文句や見出しは使わない。",
     "- zones の poiIds と relations の poiIds には、地図の店一覧にある id だけを使う（作らない）。一覧にない店は places の名前だけで書き、poiIds は空にする。",
     "- zones の anchor は、その商圏の店が集まっている場所の中心と広がり。地図の店の座標から決める。",
     "- 運営の現地調査メモにある事実は最優先で使い、矛盾するWeb情報より優先する。",
     "- 数字・年・店名は、上の材料にあるものだけを使う。確かでないことは「〜の傾向」「〜と言われる」と書く。",
+    previous
+      ? "- whatsNew には、前回の講義のあとに分かったこと（新しい投稿・リアクションの多い気づき・ニュース・調査メモ）だけを書く。前回と同じ内容や、材料にない変化は書かない。なければ空配列。"
+      : "- 前回の講義はないので whatsNew は空配列にする。",
     "- 東京都外の場所なら isTokyo を false にし、他の項目は空でかまわない。",
     "- 読み手はデートや友人との街歩きの前に読む人。専門用語には短い言い換えを添える。",
   ]
@@ -202,6 +271,7 @@ async function generateLecture(
     .join("\n\n");
 
   const ai = await askJSON({ system, content, schema: lectureSchema, validator: lectureValidator, effort: "high" });
+  const today = todayJST();
   const lecture: Lecture = {
     ...ai,
     center,
@@ -210,10 +280,17 @@ async function generateLecture(
       (x, i, all) => all.findIndex((y) => y.url === x.url) === i,
     ),
     dataUsed: { osm: !!pois?.length, hotpepper: !!mix, estat: !!stats },
+    // AIが見つけた変化を日付つきで積み上げる（＝毎日の学習の履歴）
+    updates: mergeUpdates(
+      ai.whatsNew.map((text) => ({ date: today, text })),
+      previous?.updates ?? [],
+      prior?.updates ?? [],
+    ),
+    generatedAt: new Date().toISOString(),
   };
   if (lecture.isTokyo) {
     await updateDB((d) => {
-      d.lectures[cacheKey] = { data: lecture, postCount: version, createdAt: new Date().toISOString() };
+      d.lectures[o.cacheKey] = { data: lecture, postCount: o.version, createdAt: new Date().toISOString() };
     });
   }
   return lecture;
