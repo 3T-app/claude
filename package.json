@@ -9,7 +9,8 @@
     "lint": "eslint",
     "check:analyses": "jiti scripts/check-analyses.ts",
     "check:news": "jiti scripts/check-news.ts",
-    "news:targets": "jiti scripts/news-targets.ts"
+    "news:targets": "jiti scripts/news-targets.ts",
+    "phone": "node scripts/phone.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
