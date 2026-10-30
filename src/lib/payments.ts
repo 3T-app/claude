@@ -2,6 +2,8 @@
 // STRIPE_SECRET_KEY がなければ「テスト決済」（実際には請求しない）で動く。
 // SDK は使わず、Checkout Session の作成と確認だけを REST で呼ぶ。
 
+import { keyProblem } from "./keys";
+
 const STRIPE_API = "https://api.stripe.com/v1";
 
 export type PaymentMode = "stripe" | "test";
@@ -11,6 +13,8 @@ export function paymentMode(): PaymentMode {
 }
 
 async function stripe<T>(path: string, form?: Record<string, string>): Promise<T> {
+  const problem = keyProblem("STRIPE_SECRET_KEY");
+  if (problem) throw new Error(problem);
   const res = await fetch(`${STRIPE_API}/${path}`, {
     method: form ? "POST" : "GET",
     headers: {

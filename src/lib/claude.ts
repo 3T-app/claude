@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { z } from "zod";
+import { keyProblem } from "./keys";
 
 export const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 
@@ -8,6 +9,8 @@ const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 let client: Anthropic | null = null;
 function getClient() {
+  const problem = keyProblem("ANTHROPIC_API_KEY", "sk-ant-");
+  if (problem) throw new AIError(problem);
   client ??= new Anthropic();
   return client;
 }
@@ -154,11 +157,8 @@ export async function askWithWebSearch(opts: {
 
 /** /admin の接続テスト：APIキーとクレジットとモデルが使えるかを、ごく短い呼び出しで確かめる */
 export async function testClaude(): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY ?? "";
-  if (key !== key.trim() || /^["']/.test(key)) {
-    throw new Error("APIキーの前後に空白か「\"」が入っています。.env.local では ANTHROPIC_API_KEY=sk-ant-… のように、そのまま貼ってください");
-  }
-  if (key && !key.startsWith("sk-ant-")) throw new Error("APIキーは sk-ant- で始まるはずです。Claude Console の API keys で作ったキーか確かめてください");
+  const problem = keyProblem("ANTHROPIC_API_KEY", "sk-ant-");
+  if (problem) throw new Error(problem);
   try {
     const msg = await getClient().messages.create({
       model: MODEL,
