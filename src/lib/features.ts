@@ -1,11 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type Anthropic from "@anthropic-ai/sdk";
-import { AREAS, getArea, nearestAreas, type Area } from "./areas";
+import { AREAS, distanceM, getArea, nearestAreas, type Area } from "./areas";
 import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claude";
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
 import { geocode, type GeoPoint } from "./geocode";
-import { baseSystem, findInsights, formatInsights } from "./knowledge";
+import { baseSystem, findInsights, formatInsights, getAreaNote } from "./knowledge";
 import {
   diagnosisSchema,
   diagnosisValidator,
@@ -15,12 +15,15 @@ import {
   lectureValidator,
   type Diagnosis,
   type Lecture,
+  type LectureAI,
 } from "./schemas";
+import { pointInPolygon, zonePolygon, type LatLng } from "./geo";
+import { formatPois, poisAround, type Poi } from "./sources/osm";
 import { ALL_GENRES, GENRE_SLUGS } from "./constants";
 import { cityStats, formatCityStats, type CityStats } from "./sources/estat";
 import { competition, composition, formatCompetition, formatComposition, type Competition } from "./sources/hotpepper";
 import { formatYouTube, youtubeTrends, type YouTubeVideo } from "./sources/youtube";
-import { DATA_DIR, INDICATORS, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
+import { cached, DATA_DIR, INDICATORS, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -38,6 +41,75 @@ async function safe<T>(label: string, p: Promise<T>): Promise<T | null> {
 // 商圏を学ぼう：街の講義
 // ─────────────────────────────────────────────
 
+const LECTURE_TTL = 14 * DAY;
+
+function hashText(t: string): string {
+  let h = 0;
+  for (const c of t) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h.toString(36);
+}
+
+/** 町の歴史・名残・新しい動き・支える人を、Web（ニュース中心）で調べる。30日キャッシュ */
+async function researchTown(place: string, cacheKey: string) {
+  return cached(`research:${cacheKey}`, 30 * DAY, () =>
+    askWithWebSearch({
+      system:
+        "あなたは東京の街の商業史と商圏のリサーチャーです。最近のニュース記事、自治体の資料、再開発の発表などの公開情報から、事実を調べてまとめます。",
+      prompt: [
+        `東京の「${place}」について、商圏を分析するための材料を調べてください。`,
+        "1. 町の歴史：成り立ち（宿場、闇市、花街・赤線、市場、工場など）と、その名残が今どこにどう残っているか",
+        "2. 新しい勢力：ここ10年ほどの再開発、新しい大型店・施設の開業や移転、閉店、新しい客層（インバウンド、推し活、ファミリーなど）",
+        "3. 最近のニュース：ここ1〜2年の商業・飲食・街づくりのニュース",
+        "4. 町を支える人：この街に来る・住む人（どの路線・方面から来るか、オフィス、学生、観光客、単身世帯など）と、そのニーズ",
+        "5. 同業が集まって競争している業種（家電、釣具、ラーメンなど）や、店の組み合わせで人が流れている例",
+        "それぞれ年や固有名詞を添えて、日本語の箇条書きでまとめてください。確かめられないことは書かないでください。",
+      ].join("\n"),
+      maxUses: 8,
+    }),
+  );
+}
+
+export function buildMap(ai: LectureAI, pois: Poi[]): Lecture["map"] {
+  const byId = new Map(pois.map((p) => [p.id, p]));
+  const pointsOf = (ids: string[]) =>
+    ids.map((id) => byId.get(id)).filter((p): p is Poi => !!p).map((p) => [p.lat, p.lng] as LatLng);
+  return {
+    zones: ai.zones.map((z) => {
+      // 中心から大きく外れた店は、AIの取り違えとして色塗りから外す
+      const pts = pointsOf(z.poiIds).filter(
+        ([la, lo]) => distanceM(la, lo, z.anchor.lat, z.anchor.lng) <= Math.max(800, z.anchor.radiusM * 2.5),
+      );
+      return {
+        polygon: pts.length >= 3 ? zonePolygon(pts) : null,
+        circle: { lat: z.anchor.lat, lng: z.anchor.lng, radiusM: Math.min(600, Math.max(50, z.anchor.radiusM)) },
+      };
+    }),
+    relations: ai.relations.map((r) => ({ points: pointsOf(r.poiIds) })),
+  };
+}
+
+/** 作成済みの講義があれば返す（立地調査で使う。なければ作らない） */
+async function cachedLecture(areaId: string): Promise<Lecture | null> {
+  const c = (await readDB()).lectures[areaId];
+  if (!c || !("conclusion" in (c.data as object))) return null;
+  return c.data as Lecture;
+}
+
+/** 点がどの商圏に入るか。どれにも入らなければ最寄りの商圏（300m以内） */
+export function locateZone(
+  p: LatLng,
+  zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[],
+): { name: string; inside: boolean; distance: number } | null {
+  let best: { name: string; inside: boolean; distance: number } | null = null;
+  for (const z of zones) {
+    const d = Math.round(distanceM(p[0], p[1], z.circle.lat, z.circle.lng));
+    const inside = z.polygon ? pointInPolygon(p, z.polygon) : d <= z.circle.radiusM;
+    if (inside) return { name: z.name, inside: true, distance: 0 };
+    if (d - z.circle.radiusM <= 300 && (!best || d < best.distance)) best = { name: z.name, inside: false, distance: d };
+  }
+  return best;
+}
+
 /** key は街のID、または自由入力の地名 */
 export async function getLecture(key: string): Promise<{ area: Area | null; lecture: Lecture }> {
   const area = getArea(key) ?? AREAS.find((a) => key.includes(a.name.split("・")[0])) ?? null;
@@ -46,38 +118,70 @@ export async function getLecture(key: string): Promise<{ area: Area | null; lect
 
   if (isDemoMode()) return { area, lecture: demoLecture(area, place) };
 
-  const insights = area ? await findInsights({ areaIds: [area.id], limit: 10 }) : [];
+  const [insights, note] = await Promise.all([
+    area ? findInsights({ areaIds: [area.id], limit: 12 }) : Promise.resolve([]),
+    area ? getAreaNote(area.id) : Promise.resolve(""),
+  ]);
+  const version = `${insights.length}:${hashText(note)}`;
   const db = await readDB();
-  const cached = db.lectures[cacheKey];
-  // 新しい投稿が増えたら作り直す（＝投稿がたまるほど講義が育つ）
-  if (cached && Date.now() - Date.parse(cached.createdAt) < 7 * DAY && cached.postCount === insights.length) {
-    return { area, lecture: cached.data as Lecture };
+  const cached_ = db.lectures[cacheKey] as { data: Lecture; postCount: number | string; createdAt: string } | undefined;
+  // 投稿や調査メモが増えたら作り直す（＝投稿がたまるほど講義が育つ）
+  if (
+    cached_ &&
+    Date.now() - Date.parse(cached_.createdAt) < LECTURE_TTL &&
+    String(cached_.postCount) === version &&
+    "conclusion" in (cached_.data as object)
+  ) {
+    return { area, lecture: cached_.data };
   }
 
-  const [mix, stats] = area
-    ? await Promise.all([
-        safe("hotpepper", composition(area.lat, area.lng)),
-        safe("estat", cityStats(area.city)),
-      ])
-    : [null, null];
+  const point = area ? { lat: area.lat, lng: area.lng, label: area.name } : await geocode(place);
+  const center = point ? { lat: point.lat, lng: point.lng } : null;
+  const radius = area?.category === "terminal" || area?.category === "tama" ? 1000 : 800;
 
-  const system = await baseSystem("あなたの役割は、指定された東京の街の「商圏」を初心者に講義することです。");
+  const [pois, mix, stats, research] = await Promise.all([
+    center ? safe("osm", poisAround(center.lat, center.lng, radius)) : Promise.resolve(null),
+    center ? safe("hotpepper", composition(center.lat, center.lng)) : Promise.resolve(null),
+    safe("estat", cityStats(area?.city, point?.label, place)),
+    safe("research", researchTown(place, cacheKey)),
+  ]);
+
+  const system = await baseSystem(
+    "あなたの役割は、指定された東京の街の商圏を、運営の「街の商圏の分析手順」とお手本（池袋）に沿って分析し、初心者にも分かる講義にすることです。",
+  );
   const content = [
-    `講義する場所：${place}`,
-    area ? `運営が特に見てほしいポイント：\n${area.hints.map((h) => `- ${h}`).join("\n")}` : "",
-    mix ? `<街の飲食店の構成（ホットペッパー）>\n${formatComposition(mix)}\n</街の飲食店の構成>` : "",
-    stats ? `<この街がある区市の統計（e-Stat）>\n${formatCityStats(stats)}\n</この街がある区市の統計>` : "",
-    `この街についてのみんなの投稿（AIが読み取った気づき）：\n${formatInsights(insights)}`,
-    "東京都外の場所なら isTokyo を false にし、他の項目は空でかまいません。",
-    "読み手はデートや友人との街歩きの前に読む人です。専門用語には短い言い換えを添えてください。",
+    `分析する街：${place}${center ? `（中心：緯度${center.lat.toFixed(5)} 経度${center.lng.toFixed(5)}、半径${radius}mを分析）` : ""}`,
+    area ? `<運営が特に見てほしいポイント>\n${area.hints.map((h) => `- ${h}`).join("\n")}\n</運営が特に見てほしいポイント>` : "",
+    note ? `<運営の現地調査メモ（最も信頼できる事実。必ず反映する）>\n${note}\n</運営の現地調査メモ>` : "",
+    `<区市の統計（e-Stat）>\n${formatCityStats(stats)}\n</区市の統計>`,
+    `<地図上の店・施設（OpenStreetMap）>\n${pois ? formatPois(pois, center!) : "（取得できませんでした）"}\n</地図上の店・施設>`,
+    mix ? `<飲食店の構成（ホットペッパー）>\n${formatComposition(mix)}\n</飲食店の構成>` : "",
+    `<Web・ニュースの調査>\n${research?.text ?? "（取得できませんでした）"}\n</Web・ニュースの調査>`,
+    `<この街のみんなの投稿（AIが読み取った気づき）>\n${formatInsights(insights)}\n</みんなの投稿>`,
+    "",
+    "分析の進め方：",
+    "- 運営の「街の商圏の分析手順」の1〜8の順に考え、お手本（池袋）と同じ具体性で書く。店や施設は実在の名前で書く。",
+    "- zones の poiIds と relations の poiIds には、地図の店一覧にある id だけを使う（作らない）。一覧にない店は places の名前だけで書き、poiIds は空にする。",
+    "- zones の anchor は、その商圏の店が集まっている場所の中心と広がり。地図の店の座標から決める。",
+    "- 運営の現地調査メモにある事実は最優先で使い、矛盾するWeb情報より優先する。",
+    "- 数字・年・店名は、上の材料にあるものだけを使う。確かでないことは「〜の傾向」「〜と言われる」と書く。",
+    "- 東京都外の場所なら isTokyo を false にし、他の項目は空でかまわない。",
+    "- 読み手はデートや友人との街歩きの前に読む人。専門用語には短い言い換えを添える。",
   ]
     .filter(Boolean)
     .join("\n\n");
 
-  const lecture = await askJSON({ system, content, schema: lectureSchema, validator: lectureValidator, effort: "medium" });
+  const ai = await askJSON({ system, content, schema: lectureSchema, validator: lectureValidator, effort: "high" });
+  const lecture: Lecture = {
+    ...ai,
+    center,
+    map: buildMap(ai, pois ?? []),
+    sources: research?.sources ?? [],
+    dataUsed: { osm: !!pois?.length, hotpepper: !!mix, estat: !!stats },
+  };
   if (lecture.isTokyo) {
     await updateDB((d) => {
-      d.lectures[cacheKey] = { data: lecture, postCount: insights.length, createdAt: new Date().toISOString() };
+      d.lectures[cacheKey] = { data: lecture, postCount: version, createdAt: new Date().toISOString() };
     });
   }
   return { area, lecture };
@@ -104,7 +208,7 @@ export async function answerQuestion(opts: {
     const system = [
       await baseSystem("あなたの役割は、商圏の講義を読んだ人からの質問に答えることです。"),
       "",
-      `<講義の内容>\n${JSON.stringify(lecture)}\n</講義の内容>`,
+      `<講義の内容>\n${JSON.stringify({ ...lecture, map: undefined })}\n</講義の内容>`,
       `<みんなの投稿>\n${formatInsights(insights)}\n</みんなの投稿>`,
       "",
       "回答は300字程度で、会話で使える一言で締めくくってください。商圏と関係のない質問には、やんわり街の話に戻してください。",
@@ -215,6 +319,9 @@ export interface DiagnosisResult {
   trend: TrendBundle;
   competition: Competition | null;
   city: CityStats | null;
+  /** 近くの街の講義（作成済みのとき）の商圏の色分けと、この店から関係先への線 */
+  areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
+  relationLines: LatLng[][];
   demo: boolean;
 }
 
@@ -224,11 +331,25 @@ export async function diagnose(input: { name: string; address: string; genre: st
   const nearbyInfo = nearby.map(({ area, distance }) => ({ id: area.id, name: area.name, distance: Math.round(distance) }));
 
   // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
-  const [trend, comp, city] = await Promise.all([
+  const homeArea = nearby[0] && nearby[0].distance < 2000 ? nearby[0].area : null;
+  const [trend, comp, city, pois, lectureCache] = await Promise.all([
     getTrendBundle(input.genre),
     point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
     safe("estat", cityStats(point?.label, input.address)),
+    point ? safe("osm", poisAround(point.lat, point.lng, 400)) : Promise.resolve(null),
+    homeArea ? cachedLecture(homeArea.id) : Promise.resolve(null),
   ]);
+  // 近くの街の講義がまだなければ、次回のために裏で作っておく（待たない）
+  if (homeArea && !lectureCache && !isDemoMode()) void getLecture(homeArea.id).catch(() => undefined);
+
+  const areaMap =
+    homeArea && lectureCache
+      ? {
+          areaName: homeArea.name,
+          zones: lectureCache.zones.map((z, i) => ({ name: z.name, ...lectureCache.map.zones[i] })),
+        }
+      : null;
+  const zoneHere = point && areaMap ? locateZone([point.lat, point.lng], areaMap.zones) : null;
 
   if (isDemoMode()) {
     return {
@@ -238,6 +359,8 @@ export async function diagnose(input: { name: string; address: string; genre: st
       trend,
       competition: comp,
       city,
+      areaMap,
+      relationLines: [],
       demo: true,
     };
   }
@@ -265,6 +388,18 @@ export async function diagnose(input: { name: string; address: string; genre: st
       : "",
     `<周辺のみんなの投稿>\n${formatInsights(local)}\n</周辺のみんなの投稿>`,
     `<接続性について集まった気づき（他の街も含む）>\n${formatInsights(connectionCases)}\n</接続性について集まった気づき>`,
+    lectureCache
+      ? `<${homeArea!.name}の商圏の割れ方（講義の分析）>\n${lectureCache.zones
+          .map((z) => `- ${z.name}（${z.area}、${z.peak}）：${z.character}`)
+          .join("\n")}\n店の位置から判定した所属：${zoneHere ? `${zoneHere.name}（${zoneHere.inside ? "範囲内" : `最寄り、約${zoneHere.distance}m`}）` : "判定できず"}\n</商圏の割れ方>`
+      : "",
+    lectureCache
+      ? `<${homeArea!.name}で分かっている店と店の関係>\n${lectureCache.relations
+          .map((r) => `- [${r.type}] ${r.places.join(" → ")}：${r.flow}`)
+          .join("\n")}\n</店と店の関係>`
+      : "",
+    homeArea ? `<運営の現地調査メモ（${homeArea.name}）>\n${(await getAreaNote(homeArea.id)) || "（なし）"}\n</運営の現地調査メモ>` : "",
+    `<店から半径400m以内の店・施設（OpenStreetMap）>\n${pois && point ? formatPois(pois, point, 200) : "（取得できませんでした）"}\n</店から半径400m以内の店・施設>`,
     `<周辺の飲食店（ホットペッパー）>\n${formatCompetition(comp, input.genre)}\n</周辺の飲食店>`,
     `<区市の人口・世帯（e-Stat）>\n${formatCityStats(city)}\n</区市の人口・世帯>`,
     `<${input.genre}の流行：運営がX・Instagramなどから手で集めたメモ（最優先で参考にする）>\n${formatNotes(trend.notes)}\n</流行メモ>`,
@@ -276,6 +411,8 @@ export async function diagnose(input: { name: string; address: string; genre: st
     "数字のデータ（同業の軒数、一人暮らしの割合、昼夜間人口比など）がある軸は、その数字を reason に必ず引用してください。データがない軸は推定であることを書いてください。",
     "trendFit とバズるメニューは、流行メモ・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
+    "運営の「立地調査での使いかた」に沿って、まず zoneFit（どの商圏の中・端・外か）を決め、次に relations（周りの実在の店との補完・集積・価格競争）を書き、その読みを5つの軸の点数の根拠にしてください。",
+    "relations の poiIds には、店から半径400m以内の一覧にある id だけを使ってください（作らない）。",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -291,7 +428,23 @@ export async function diagnose(input: { name: string; address: string; genre: st
   diagnosis.scores = INDICATORS.map(
     (ind) => diagnosis.scores.find((s) => s.indicator === ind) ?? { indicator: ind, score: 3, reason: "評価できませんでした", advice: "" },
   );
-  return { diagnosis, point, nearby: nearbyInfo, trend, competition: comp, city, demo: false };
+  const byId = new Map((pois ?? []).map((p) => [p.id, p]));
+  const relationLines = diagnosis.relations.map((r) =>
+    [[point?.lat ?? 0, point?.lng ?? 0] as LatLng].concat(
+      r.poiIds.map((id) => byId.get(id)).filter((p): p is Poi => !!p).map((p) => [p.lat, p.lng] as LatLng),
+    ),
+  );
+  return {
+    diagnosis,
+    point,
+    nearby: nearbyInfo,
+    trend,
+    competition: comp,
+    city,
+    areaMap,
+    relationLines: point ? relationLines : [],
+    demo: false,
+  };
 }
 
 // ─────────────────────────────────────────────

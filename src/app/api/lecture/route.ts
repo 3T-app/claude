@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { getLecture, remainingQuestions } from "@/lib/features";
 import { errorResponse, getUid } from "@/lib/http";
 import { isDemoMode } from "@/lib/claude";
-import { estatEnabled } from "@/lib/sources/estat";
-import { hotpepperEnabled } from "@/lib/sources/hotpepper";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const { key } = (await req.json()) as { key?: string };
@@ -22,7 +20,6 @@ export async function POST(req: Request) {
       lecture,
       remaining: await remainingQuestions(await getUid(), areaKey),
       demo: isDemoMode(),
-      credits: { hotpepper: !!area && hotpepperEnabled(), estat: !!area && estatEnabled() },
     });
   } catch (err) {
     return errorResponse(err);

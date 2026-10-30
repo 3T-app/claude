@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import MapView from "@/components/MapView";
+import MapView, { type MapZone } from "@/components/MapView";
 import { Card, DemoBanner, ErrorNote, PageHeader } from "@/components/ui";
 import { AREAS } from "@/lib/areas";
+import { zoneColor } from "@/lib/zoneColors";
 import type { DiagnosisResult } from "@/lib/features";
 import { GENRES } from "@/lib/constants";
 
@@ -131,6 +132,13 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
   const avg = d.scores.reduce((n, s) => n + s.score, 0) / d.scores.length;
   const [open, setOpen] = useState<string | null>(d.scores[0]?.indicator ?? null);
   const nearbyAreas = nearby.map((n) => AREAS.find((a) => a.id === n.id)).filter((a) => !!a);
+  const zones: MapZone[] = (result.areaMap?.zones ?? []).map((z, i) => ({
+    number: i + 1,
+    label: z.name,
+    color: zoneColor(i),
+    polygon: z.polygon,
+    circle: z.circle,
+  }));
 
   return (
     <div className="mt-6 space-y-4 pb-4">
@@ -146,21 +154,32 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
       </div>
 
       {point && (
-        <div className="overflow-hidden border-y border-line">
+        <div className="border-y border-line">
           <MapView
             center={[point.lat, point.lng]}
-            zoom={15}
-            className="h-56 w-full"
-            markers={[
-              ...nearbyAreas.map((a) => ({ id: a.id, lat: a.lat, lng: a.lng, label: a.name, color: "#1f2328" })),
-              { id: "store", lat: point.lat, lng: point.lng, label: name, emphasis: true },
-            ]}
-            circles={[
-              { lat: point.lat, lng: point.lng, radius: 300, color: "#e8532f", label: "半径300m（徒歩約4分）" },
-              { lat: point.lat, lng: point.lng, radius: 800, color: "#3b5bdb", label: "半径800m（徒歩約10分）" },
-            ]}
+            zoom={16}
+            className="h-72 w-full"
+            zones={zones}
+            lines={result.relationLines.map((pts, i) => ({ points: pts, label: d.relations[i]?.flow ?? "" }))}
+            markers={[{ id: "store", lat: point.lat, lng: point.lng, label: name, emphasis: true }]}
+            circles={[{ lat: point.lat, lng: point.lng, radius: 300, color: "#e8532f", label: "半径300m（徒歩約4分）" }]}
           />
-          {point.approximate && <p className="px-4 py-1 text-[11px] text-ink-soft">※位置は街の中心による概算です</p>}
+          {zones.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 px-4 pt-2">
+              {zones.map((z) => (
+                <li key={z.number} className="flex items-center gap-1 text-[11px] font-bold">
+                  <span className="h-3 w-3 rounded-sm" style={{ background: z.color }} />
+                  {z.number}. {z.label}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="px-4 py-1.5 text-[10px] text-ink-soft">
+            {result.areaMap
+              ? `色分け：${result.areaMap.areaName}の商圏の割れ方／点線：この店と周りの店の関係`
+              : "近くの街の講義を一度開くと、ここに商圏の色分けが表示されます。"}
+            {point.approximate && "　※位置は街の中心による概算です"}
+          </p>
         </div>
       )}
 
@@ -198,6 +217,34 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
           </ul>
         </Card>
 
+        <Card>
+          <h3 className="text-sm font-black text-accent">🧭 この店はどの商圏にいるか</h3>
+          <p className="mt-2 text-base font-black">
+            {d.zoneFit.zoneName}
+            <span className="ml-2 rounded bg-foreground px-1.5 py-0.5 align-middle text-[10px] font-bold text-white">
+              {d.zoneFit.position}
+            </span>
+          </p>
+          <p className="mt-1 text-sm leading-relaxed">{d.zoneFit.reading}</p>
+        </Card>
+
+        <Card>
+          <h3 className="text-sm font-black text-accent">🔗 周りの店との関係</h3>
+          <ul className="mt-2 space-y-2.5">
+            {d.relations.map((r, i) => (
+              <li key={i} className="rounded-xl bg-background p-3 text-sm leading-relaxed">
+                <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{r.type}</span>
+                <p className="mt-1.5 font-bold">{r.partners.join("・")}</p>
+                <p className="text-xs">{r.flow}</p>
+                <p className="mt-1 text-xs">
+                  <b>活かし方：</b>
+                  {r.howToUse}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
         <LocalDataCard result={result} />
 
         <Card>
@@ -225,6 +272,7 @@ function Report({ result, name }: { result: DiagnosisResult; name: string }) {
         <TrendCard bundle={trend} genre={trend.web.genre} trendFit={d.trendFit} />
 
         <p className="text-[11px] leading-relaxed text-ink-soft">⚠️ {d.caveats}</p>
+        <p className="text-[10px] text-ink-soft">地図：国土地理院／店・施設の位置：© OpenStreetMap contributors</p>
 
         {nearbyAreas.length > 0 && (
           <div className="flex flex-wrap gap-2">

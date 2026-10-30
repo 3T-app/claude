@@ -35,13 +35,14 @@ function textOf(msg: Anthropic.Beta.BetaMessage): string {
 
 function wrap(err: unknown): never {
   if (err instanceof AIError) throw err;
+  if (err instanceof SyntaxError) throw new AIError("AIの回答を読み取れませんでした。もう一度お試しください。");
   if (err instanceof Anthropic.AuthenticationError) throw new AIError("APIキーが無効です。");
   if (err instanceof Anthropic.RateLimitError) throw new AIError("混み合っています。少し待ってからお試しください。");
   if (err instanceof Anthropic.APIError) throw new AIError(`AIの呼び出しに失敗しました（${err.status ?? "network"}）`);
   throw err;
 }
 
-/** JSONスキーマで出力を固定し、zodで検証して返す */
+/** JSONスキーマで出力を固定し、zodで検証して返す。長い出力でも切れないようストリーミングで受け取る */
 export async function askJSON<T>(opts: {
   system: string;
   content: Content;
@@ -50,18 +51,20 @@ export async function askJSON<T>(opts: {
   effort?: Effort;
 }): Promise<T> {
   try {
-    const msg = await getClient().beta.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      betas: [FALLBACK_BETA],
-      fallbacks: "default",
-      system: opts.system,
-      output_config: {
-        effort: opts.effort ?? "medium",
-        format: { type: "json_schema", schema: opts.schema },
-      },
-      messages: [{ role: "user", content: opts.content }],
-    });
+    const msg = await getClient()
+      .beta.messages.stream({
+        model: MODEL,
+        max_tokens: 48000,
+        betas: [FALLBACK_BETA],
+        fallbacks: "default",
+        system: opts.system,
+        output_config: {
+          effort: opts.effort ?? "medium",
+          format: { type: "json_schema", schema: opts.schema },
+        },
+        messages: [{ role: "user", content: opts.content }],
+      })
+      .finalMessage();
     if (msg.stop_reason === "max_tokens") throw new AIError("回答が長くなりすぎました。もう一度お試しください。");
     const parsed = opts.validator.safeParse(JSON.parse(textOf(msg)));
     if (!parsed.success) throw new AIError("AIの回答を読み取れませんでした。もう一度お試しください。");

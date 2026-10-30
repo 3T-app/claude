@@ -1,4 +1,6 @@
-import { readDB, reactionCount, type Indicator, type Post } from "./store";
+import { promises as fs } from "fs";
+import path from "path";
+import { DATA_DIR, readDB, reactionCount, type Indicator, type Post } from "./store";
 import { getArea } from "./areas";
 
 // 「育成」のしくみ：モデル自体は再学習せず、
@@ -6,9 +8,25 @@ import { getArea } from "./areas";
 //   2) 掲示板の投稿からAIが抽出した気づき（insight）をリアクション数で重みづけしたもの
 // を毎回プロンプトに差し込む。投稿とリアクションが増えるほど、講義と診断が街の実態に寄っていく。
 
+async function readText(file: string): Promise<string> {
+  try {
+    return await fs.readFile(path.join(DATA_DIR, file), "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/** /admin で編集されていればそれを、されていなければ data/teachings.md を使う */
 export async function getTeachings(): Promise<string> {
   const db = await readDB();
-  return db.teachings.trim();
+  return (db.teachingsEdited ? db.teachings : await readText("teachings.md")).trim();
+}
+
+/** 運営の現地調査メモ（街ごと）。/admin で編集されていればそれを、なければ data/area-notes/<id>.md */
+export async function getAreaNote(areaId: string): Promise<string> {
+  if (!/^[a-z0-9-]+$/.test(areaId)) return "";
+  const db = await readDB();
+  return (db.areaNotes[areaId] ?? (await readText(`area-notes/${areaId}.md`))).trim();
 }
 
 function score(p: Post): number {

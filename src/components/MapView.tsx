@@ -13,4 +13,4 @@ export default function MapView(props: MapProps) {
   return <LeafletMap {...props} />;
 }
 
-export type { MapMarker, MapCircle } from "./LeafletMap";
+export type { MapMarker, MapCircle, MapZone, MapLine } from "./LeafletMap";

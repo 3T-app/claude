@@ -13,23 +13,51 @@ function hash(s: string): number {
 
 export function demoLecture(area: Area | null, place: string): Lecture {
   const hints = area?.hints ?? [`${place}の商圏データはデモモードでは用意されていません。`];
+  const c = area ? { lat: area.lat, lng: area.lng } : null;
+  // デモでは中心のまわりに仮の商圏を置き、地図の色分けの見え方だけ確かめられるようにする
+  const offsets: [number, number, string, "昼" | "夜" | "昼夜" | "休日"][] = [
+    [0.0025, 0.0035, "回遊型の商圏（デモ）", "昼"],
+    [-0.0015, -0.003, "夜の繁華街（デモ）", "夜"],
+    [-0.003, 0.002, "オフィス・ランチ商圏（デモ）", "昼"],
+  ];
+  const zones = offsets.map(([dLat, dLng, name, peak], i) => ({
+    name,
+    area: "デモ表示",
+    character: hints[i] ?? "APIキーを設定すると、地図の店の分布からAIが商圏を分けます。",
+    peak,
+    poiIds: [],
+    anchor: { lat: (c?.lat ?? 35.68) + dLat, lng: (c?.lng ?? 139.76) + dLng, radiusM: 250 },
+  }));
   return {
     isTokyo: true,
     placeName: area?.name ?? place,
     headline: area?.catch ?? `${place}の商圏を歩いてみよう`,
-    overview: `【デモ表示】${hints.join("。")}。APIキーを設定すると、AIがこの街の商圏を詳しく講義します。`,
-    zones: hints.slice(0, 3).map((h, i) => ({ name: `ゾーン${i + 1}`, description: h })),
-    timeShift: {
-      morning: "通勤・通学の通過需要。コーヒーとパンが動く時間。",
-      daytime: "ランチ需要と、買い物・観光の来街者。",
-      night: "仕事帰りの飲食と、夜の目的来店。",
-      weekend: "平日とは客層が入れ替わり、滞在時間が長くなる。",
-    },
-    customers: "デモ表示：APIキー設定後に、この街の客層とニーズを解説します。",
-    connections: "デモ表示：駅からの動線と、店同士の「ついで」の組み合わせを解説します。",
+    conclusion: `【デモ表示】APIキーを設定すると、「つまり${area?.name ?? place}は、昼は〜、夜は〜で栄える商圏だ」という結論を、統計・地図の店・歴史・ニュースから導きます。`,
+    supporters: [
+      { who: "デモ表示", need: "APIキー設定後に、町を支える世帯とニーズを分析します", evidence: "e-Stat の統計とニュース" },
+    ],
+    zones,
+    relations: [
+      {
+        type: "補完（はしご）",
+        places: ["食事の店", "デザートの店", "カラオケ"],
+        poiIds: [],
+        flow: "遊ぶ → 食べる → 甘いもので締める（デモ）",
+        who: "デモ表示",
+        effect: "APIキー設定後に、実在の店の組み合わせで分析します",
+      },
+    ],
+    history: hints.slice(0, 2).map((h) => ({ period: "—", event: h, remnant: "デモ表示" })),
+    newForces: [{ period: "—", event: "デモ表示", effect: "APIキー設定後に、再開発や新しい店の動きを調べます" }],
+    contrasts: [],
+    dayNight: { day: "デモ表示：昼に街を支える商圏", night: "デモ表示：夜に街を支える商圏" },
     unchiku: hints.slice(0, 3).map((h) => ({ line: h.split("。")[0], explanation: "デモ表示のうんちくです。" })),
     walkRoute: "駅を出たら、まず人の流れが一番多い方向へ。次に一本裏の通りへ入り、客層の変化を感じてみよう。",
     communityNote: "",
+    center: c,
+    map: { zones: zones.map((z) => ({ polygon: null, circle: z.anchor })), relations: [{ points: [] }] },
+    sources: [],
+    dataUsed: { osm: false, hotpepper: false, estat: false },
   };
 }
 
@@ -38,6 +66,16 @@ export function demoDiagnosis(name: string, address: string, genre: string): Dia
   return {
     storeUnderstanding: `【デモ表示】「${name}」（${genre}）を ${address} の店として仮に評価しています。`,
     locationSummary: "APIキーを設定すると、周辺の商圏・投稿・トレンドを踏まえて分析します。",
+    zoneFit: { zoneName: "デモ表示", position: "端", reading: "APIキー設定後に、この店がどの商圏のどの流れを受けられるかを分析します。" },
+    relations: [
+      {
+        type: "補完（はしご）",
+        partners: ["近くの食事の店"],
+        poiIds: [],
+        flow: "食事 → この店（デモ）",
+        howToUse: "APIキー設定後に、実在の店との関係から具体策を出します。",
+      },
+    ],
     scores: INDICATORS.map((indicator, i) => ({
       indicator,
       score: ((h >>> (i * 3)) % 5) + 1,

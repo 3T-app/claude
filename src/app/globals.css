@@ -31,3 +31,18 @@ body {
 .leaflet-container {
   font-family: var(--font-sans);
 }
+
+/* 商圏の番号ラベル（地図上） */
+.leaflet-tooltip.zone-label {
+  background: #1f2328;
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  padding: 0 7px;
+  font-weight: 800;
+  font-size: 12px;
+  box-shadow: none;
+}
+.leaflet-tooltip.zone-label::before {
+  display: none;
+}

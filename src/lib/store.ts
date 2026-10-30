@@ -53,14 +53,17 @@ interface DB {
   posts: Post[];
   trends: Record<string, TrendCache>;
   trendNotes: TrendNote[];
-  lectures: Record<string, { data: unknown; postCount: number; createdAt: string }>;
+  lectures: Record<string, { data: unknown; postCount: number | string; createdAt: string }>;
   chatUsage: Record<string, number>;
   /** 外部APIの結果のキャッシュ（YouTube・ホットペッパー・e-Stat） */
   sourceCache: Record<string, { data: unknown; fetchedAt: string }>;
+  /** /admin で編集したときだけ入る。空ならファイル（data/teachings.md, data/area-notes/*.md）を使う */
+  teachingsEdited?: boolean;
   teachings: string;
+  areaNotes: Record<string, string>;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, chatUsage: {}, sourceCache: {}, teachings: "" };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, chatUsage: {}, sourceCache: {}, teachings: "", areaNotes: {} };
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -102,11 +105,6 @@ export function updateDB<T>(fn: (db: DB) => T | Promise<T>): Promise<T> {
 
 async function seed(): Promise<DB> {
   const db: DB = structuredClone(EMPTY);
-  try {
-    db.teachings = await fs.readFile(path.join(DATA_DIR, "teachings.md"), "utf8");
-  } catch {
-    db.teachings = "";
-  }
   try {
     const posts = JSON.parse(await fs.readFile(path.join(DATA_DIR, "seed-posts.json"), "utf8"));
     db.posts = posts;

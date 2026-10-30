@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, PageHeader } from "@/components/ui";
+import { AREAS } from "@/lib/areas";
 import { ALL_GENRES, GENRES, NOTE_SOURCES } from "@/lib/constants";
 import type { TrendNote } from "@/lib/store";
 
@@ -83,6 +84,7 @@ export default function AdminPage() {
             </p>
             <TrendNotesCard token={token} notes={data.notes} onChange={() => load(token)} />
             <SourcesCard token={token} sources={data.sources} />
+            <AreaNotesCard token={token} />
             <Card>
               <h2 className="text-sm font-black">運営からの教え</h2>
               <textarea
@@ -265,6 +267,60 @@ function SourcesCard({ token, sources }: { token: string; sources: AdminData["so
       </ul>
       <button onClick={check} disabled={busy} className="mt-3 w-full rounded-xl bg-foreground py-2 text-sm font-bold text-white disabled:opacity-50">
         {busy ? "確認中…" : "接続テスト"}
+      </button>
+    </Card>
+  );
+}
+
+/** 街ごとの現地調査メモ。保存すると、その街の講義は次に開いたときに作り直される */
+function AreaNotesCard({ token }: { token: string }) {
+  const [area, setArea] = useState("ikebukuro");
+  const [note, setNote] = useState("");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setMessage("");
+    fetch(`/api/admin/area-notes?area=${area}`, { headers: { "x-admin-token": token } })
+      .then((r) => r.json())
+      .then((j) => setNote(j.note ?? ""));
+  }, [area, token]);
+
+  async function save() {
+    const r = await fetch("/api/admin/area-notes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      body: JSON.stringify({ area, note }),
+    });
+    setMessage(r.ok ? "保存しました。この街の講義は次に開いたときに作り直されます。" : "保存に失敗しました。");
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-black">🗒️ 街ごとの現地調査メモ</h2>
+      <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+        巡見で分かったこと、町の歴史、補完関係の例などを書いてください。AIは講義と立地調査で、ここを最も信頼できる事実として使います。
+      </p>
+      <select
+        value={area}
+        onChange={(e) => setArea(e.target.value)}
+        className="mt-2 w-full rounded-xl border border-line bg-background px-2 py-2 text-sm"
+      >
+        {AREAS.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={12}
+        placeholder="例：西口は旧赤線跡の名残でスナックが密集。東口は若手の独立店が多い…"
+        className="mt-2 w-full rounded-xl border border-line bg-background p-3 text-xs leading-relaxed"
+      />
+      {message && <p className="text-xs text-accent">{message}</p>}
+      <button onClick={save} className="mt-2 w-full rounded-xl bg-foreground py-2.5 text-sm font-bold text-white">
+        保存する
       </button>
     </Card>
   );
