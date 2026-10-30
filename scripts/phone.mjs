@@ -12,15 +12,27 @@ const ips = Object.values(os.networkInterfaces())
 
 function showUrls() {
   console.log("\n==============================================");
+  console.log(" 【パソコンで開く】");
+  console.log(`   アプリ　：http://localhost:${PORT}`);
+  console.log(`   管理画面：http://localhost:${PORT}/admin`);
   if (ips.length === 0) {
-    console.log(" ネットワークのアドレスが見つかりません。Wi-Fiにつながっているか確認してください。");
+    console.log("\n ネットワークのアドレスが見つかりません。iPhoneで開くには、Wi-Fiにつながっているか確認してください。");
   } else {
-    console.log(" iPhoneのSafariで、次のどれかを開いてください：");
-    for (const ip of ips) console.log(`   http://${ip}:${PORT}`);
-    console.log(" （パソコンとiPhoneを同じWi-Fiにつないでください）");
+    console.log("\n 【iPhoneのSafariで開く】（パソコンと同じWi-Fiで。いくつか出たら上から順に試す）");
+    for (const ip of ips) {
+      console.log(`   アプリ　：http://${ip}:${PORT}`);
+      console.log(`   管理画面：http://${ip}:${PORT}/admin`);
+    }
   }
+  console.log("\n 管理画面の合言葉は .env.local の ADMIN_TOKEN= に書いた文字です");
   console.log(" 止めるときは Ctrl + C");
   console.log("==============================================\n");
+}
+
+/** 起動したら、パソコンのブラウザでアプリを開く */
+function openBrowser(url) {
+  const cmd = process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : null;
+  if (cmd) setTimeout(() => spawn(cmd, { shell: true, stdio: "ignore" }), 4000);
 }
 
 /** その番号（ポート）が空いているか */
@@ -54,4 +66,5 @@ if (PORT !== WANTED) {
   console.log("  （前に開いた黒い画面でアプリが動いたままかもしれません。不要ならその画面で Ctrl + C）");
 }
 showUrls();
+openBrowser(`http://localhost:${PORT}`);
 await run(`npx next start -H 0.0.0.0 -p ${PORT}`);
