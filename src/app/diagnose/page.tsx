@@ -476,6 +476,26 @@ function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend
         </div>
       )}
 
+      {bundle.global.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-bold">🌏 海外で話題（先取り・日本上陸・訪日客）</p>
+          <ul className="mt-1 space-y-1 text-xs leading-relaxed">
+            {bundle.global.slice(0, 5).map((g) => (
+              <li key={g.url + g.title}>
+                <span className="mr-1 rounded bg-foreground px-1 py-0.5 text-[9px] font-bold text-white">{g.kind}</span>
+                <span className="text-[10px] font-bold text-ink-soft">{g.region}</span>{" "}
+                <a href={g.url} target="_blank" rel="noreferrer" className="underline">
+                  {g.title}
+                </a>
+                <span className="text-[10px] text-ink-soft">（{g.source}・{g.date.slice(5).replace("-", "/")}）</span>
+                <br />
+                <span className="text-ink-soft">{g.whyTokyo}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {youtube.length > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-bold">▶️ YouTubeで伸びている動画（直近30日）</summary>

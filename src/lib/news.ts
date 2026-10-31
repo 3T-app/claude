@@ -31,6 +31,22 @@ export const buzzValidator = z.object({
 });
 export type BuzzItem = z.infer<typeof buzzValidator>["items"][number];
 
+/** 海外で話題の食・飲食店（日本・東京に来る前後の流行と、訪日客が東京で探しているもの） */
+export const GLOBAL_KINDS = ["海外の流行", "日本上陸", "訪日客の流行"] as const;
+export const globalValidator = z.object({
+  updatedAt: z.string(),
+  items: z.array(
+    item.extend({
+      kind: z.enum(GLOBAL_KINDS),
+      region: z.string(),
+      genre: z.string(),
+      whyTokyo: z.string(),
+      areaId: z.string().optional(),
+    }),
+  ),
+});
+export type GlobalItem = z.infer<typeof globalValidator>["items"][number];
+
 async function readJSON<T>(file: string, v: z.ZodType<T>): Promise<T | null> {
   try {
     const parsed = v.safeParse(JSON.parse(await fs.readFile(path.join(DATA_DIR, "news", file), "utf8")));
@@ -72,4 +88,21 @@ export function formatAreaNews(items: AreaNewsItem[]): string {
 export function formatBuzz(items: BuzzItem[]): string {
   if (items.length === 0) return "（直近の話題はありません）";
   return items.map((i) => `- [${i.date}｜${i.genre}] ${i.title}（${i.source}）：${i.summary}（話題の理由：${i.why}）`).join("\n");
+}
+
+/** 海外の話題（その業態と「全般」、直近45日） */
+export async function readGlobal(genre: string, limit = 8): Promise<GlobalItem[]> {
+  const n = await readJSON("global.json", globalValidator);
+  const since = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  return (n?.items ?? [])
+    .filter((i) => (i.genre === genre || i.genre === "全般") && i.date >= since)
+    .sort(newestFirst)
+    .slice(0, limit);
+}
+
+export function formatGlobal(items: GlobalItem[]): string {
+  if (items.length === 0) return "（直近の海外の話題はありません）";
+  return items
+    .map((i) => `- [${i.date}｜${i.kind}｜${i.region}｜${i.genre}] ${i.title}（${i.source}）：${i.summary}（東京での意味：${i.whyTokyo}）`)
+    .join("\n");
 }

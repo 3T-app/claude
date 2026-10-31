@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { z } from "zod";
 import { getArea } from "./areas";
-import { lectureValidator, type Lecture, type LectureAI } from "./schemas";
+import { lectureValidator, nightlifeValidator, type Lecture, type LectureAI } from "./schemas";
 import { DATA_DIR } from "./store";
 
 // Claude Code が Web で調べて書いた街ごとの分析（data/analyses/<id>.json）。
@@ -13,6 +13,8 @@ export const storedAnalysisValidator = lectureValidator.omit({ whatsNew: true })
   analyzedAt: z.string(),
   /** 毎日のニュース巡回で書き足す更新履歴（新しい順） */
   updates: z.array(z.object({ date: z.string(), text: z.string() })).default([]),
+  /** 飲み屋街の分析（出口 → 人の流れ → 飲み屋街） */
+  nightlife: nightlifeValidator.optional(),
 });
 export type StoredAnalysis = z.infer<typeof storedAnalysisValidator>;
 
@@ -36,7 +38,8 @@ export async function loadAnalysisLecture(areaId: string): Promise<Lecture | nul
   const a = await readAnalysis(areaId);
   const area = getArea(areaId);
   if (!a || !area) return null;
-  const { sources, analyzedAt, updates, ...ai } = a;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { sources, analyzedAt, updates, nightlife, ...ai } = a;
   return {
     ...(ai as Omit<LectureAI, "whatsNew">),
     whatsNew: [],
@@ -64,5 +67,6 @@ export function formatAnalysis(a: StoredAnalysis): string {
     `店と店の関係：${a.relations.map((r) => `[${r.type}] ${r.places.join("→")}：${r.flow}`).join("／")}`,
     `歴史と名残：${a.history.map((h) => `${h.period} ${h.event}（名残：${h.remnant}）`).join("／")}`,
     `新しい勢力：${a.newForces.map((n) => `${n.period} ${n.event}`).join("／")}`,
+    `昼の街：${a.daytime.summary} ${a.daytime.slots.map((s) => `【${s.time}】${s.who}が${s.where}に`).join(" ")}`,
   ].join("\n");
 }

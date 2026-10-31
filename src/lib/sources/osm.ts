@@ -159,3 +159,43 @@ export function nearbyByCategory(pois: Poi[], lat: number, lng: number, perCateg
     (g) => g.items.length > 0,
   );
 }
+
+export interface StationExit {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+/** 駅の出入口（OpenStreetMap の railway=subway_entrance / train_station_entrance など）。30日キャッシュ */
+export async function stationExits(lat: number, lng: number, radius = 700): Promise<StationExit[]> {
+  if (process.env.OSM_DISABLED === "1") return [];
+  return cached(`osm-exits:${lat.toFixed(4)},${lng.toFixed(4)}:${radius}`, 30 * DAY, async () => {
+    const a = `(around:${radius},${lat},${lng})`;
+    const json = await overpass(`[out:json][timeout:30];
+(
+  node${a}[railway~"^(subway_entrance|train_station_entrance)$"];
+  node${a}[public_transport=entrance];
+  node${a}[entrance][railway];
+);
+out tags 300;`);
+    const exits: StationExit[] = [];
+    for (const e of json.elements) {
+      const t = e.tags ?? {};
+      if (e.lat === undefined || e.lon === undefined) continue;
+      const name = [t["name:ja"] ?? t.name, t.ref && !(t.name ?? "").includes(t.ref) ? t.ref : ""].filter(Boolean).join(" ");
+      exits.push({ id: `n${e.id}`, name: name || "出入口", lat: e.lat, lng: e.lon });
+    }
+    return exits;
+  });
+}
+
+/** 飲み屋街の分析に使う店（バー・パブ・居酒屋・ナイトクラブ・カラオケ・夜の店） */
+export function nightPois(pois: Poi[]): Poi[] {
+  return pois.filter(
+    (p) =>
+      p.category === "夜の店" ||
+      p.kind === "karaoke_box" ||
+      (p.category === "飲食" && /izakaya|yakitori|bar|pub|wine|beer|sake|oden|horumon|kushi/i.test(p.kind)),
+  );
+}

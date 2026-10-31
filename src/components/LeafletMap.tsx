@@ -10,6 +10,8 @@ export interface MapMarker {
   label: string;
   color?: string;
   emphasis?: boolean;
+  /** ラベルを常に表示する（駅の出口など） */
+  labelAlways?: boolean;
 }
 
 export interface MapCircle {
@@ -133,7 +135,7 @@ export default function LeafletMap({
           pathOptions={{ color: "#fff", weight: 2, fillColor: m.color ?? "#e8532f", fillOpacity: 0.95 }}
           eventHandlers={onSelect ? { click: () => onSelect(m.id) } : undefined}
         >
-          <Tooltip direction="top" offset={[0, -6]} permanent={m.emphasis}>
+          <Tooltip direction="top" offset={[0, -6]} permanent={m.emphasis || m.labelAlways} className={m.labelAlways ? "exit-label" : undefined}>
             {m.label}
           </Tooltip>
         </CircleMarker>

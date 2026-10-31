@@ -58,6 +58,10 @@ export function demoLecture(area: Area | null, place: string): Lecture {
     newForces: [{ period: "—", event: "デモ表示", effect: "APIキー設定後に、再開発や新しい店の動きを調べます" }],
     contrasts: [],
     dayNight: { day: "デモ表示：昼に街を支える商圏", night: "デモ表示：夜に街を支える商圏" },
+    daytime: {
+      summary: "【デモ表示】APIキーを設定すると、朝・ランチ・午後・休日の昼に、誰がどこに来るかをAIが分析します。",
+      slots: (["朝", "ランチ", "午後", "休日の昼"] as const).map((time) => ({ time, who: "デモ表示", where: "デモ表示", scene: "デモ表示", tip: "" })),
+    },
     unchiku: hints.slice(0, 3).map((h) => ({ line: h.split("。")[0], explanation: "デモ表示のうんちくです。" })),
     walkRoute: "駅を出たら、まず人の流れが一番多い方向へ。次に一本裏の通りへ入り、客層の変化を感じてみよう。",
     communityNote: "",

@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
-import MapView, { type MapZone } from "@/components/MapView";
+import { use, useCallback, useEffect, useRef, useState } from "react";
+import MapView, { type MapLine, type MapMarker, type MapZone } from "@/components/MapView";
 import AskAI, { ASK_ANCHOR, AskAILink } from "@/components/AskAI";
 import PostCard from "@/components/PostCard";
 import { Card, DemoBanner, ErrorNote, Spinner } from "@/components/ui";
 import type { Area } from "@/lib/areas";
 import type { PublicPost } from "@/lib/posts";
 import type { AreaNewsItem } from "@/lib/news";
-import type { FocusType, Lecture } from "@/lib/schemas";
+import type { FocusType, Lecture, NightlifeView } from "@/lib/schemas";
 import { zoneColor } from "@/lib/zoneColors";
 
 interface LectureResponse {
@@ -84,15 +84,58 @@ function LectureView({
 }) {
   const { lecture, area } = data;
   const [active, setActive] = useState<number | null>(null);
+  const night = useNightlife(data.areaKey);
+  const mapRef = useRef<HTMLDivElement>(null);
   const center = lecture.center ?? (area ? { lat: area.lat, lng: area.lng } : null);
-  const zones: MapZone[] = lecture.zones.map((z, i) => ({
-    number: i + 1,
-    label: z.name,
-    color: zoneColor(i),
-    polygon: lecture.map.zones[i]?.polygon ?? null,
-    circle: lecture.map.zones[i]?.circle ?? z.anchor,
-  }));
-  const lines = lecture.relations.map((r, i) => ({ points: lecture.map.relations[i]?.points ?? [], label: r.flow }));
+  const nightMode = night.mode && !!night.data;
+
+  // 通常は商圏の色分け。飲み屋街を開くと、出口・人の流れ・飲み屋街の分布に切り替える
+  const zones: MapZone[] = nightMode
+    ? night.data!.districts.map((d, i) => ({
+        number: i + 1,
+        label: d.name,
+        color: zoneColor(i),
+        polygon: night.data!.map.districts[i]?.polygon ?? null,
+        circle: night.data!.map.districts[i]?.circle ?? d.anchor,
+      }))
+    : lecture.zones.map((z, i) => ({
+        number: i + 1,
+        label: z.name,
+        color: zoneColor(i),
+        polygon: lecture.map.zones[i]?.polygon ?? null,
+        circle: lecture.map.zones[i]?.circle ?? z.anchor,
+      }));
+  const lines: MapLine[] = nightMode
+    ? night.data!.exits.flatMap((x, ei) => {
+        const at = night.data!.map.exits[ei];
+        return night
+          .data!.districts.map((d, di) => ({ d, di }))
+          .filter(({ d }) => d.fromExits.includes(x.name))
+          .map(({ d, di }) => ({
+            points: [
+              [at.lat, at.lng],
+              [night.data!.map.districts[di]?.circle.lat ?? d.anchor.lat, night.data!.map.districts[di]?.circle.lng ?? d.anchor.lng],
+            ] as [number, number][],
+            label: `${x.name} → ${d.name}：${x.flow}`,
+          }));
+      })
+    : lecture.relations.map((r, i) => ({ points: lecture.map.relations[i]?.points ?? [], label: r.flow }));
+  const markers: MapMarker[] = nightMode
+    ? night.data!.map.exits.map((e, i) => ({
+        id: `exit-${i}`,
+        lat: e.lat,
+        lng: e.lng,
+        label: `🚉 ${e.name}`,
+        color: "#1f2328",
+        labelAlways: true,
+      }))
+    : [];
+
+  function openNight() {
+    night.open();
+    setActive(null);
+    mapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <div className="space-y-4 pb-4">
@@ -113,15 +156,27 @@ function LectureView({
       {data.demo && <DemoBanner />}
 
       {center && (
-        <div className="border-y border-line">
+        <div ref={mapRef} className="scroll-mt-2 border-y border-line">
+          {night.mode && (
+            <div className="flex items-center justify-between gap-2 bg-foreground px-4 py-2 text-white">
+              <p className="text-xs font-bold">🍺 飲み屋街マップ：出口 → 人の流れ → 飲み屋街</p>
+              <button onClick={() => night.close()} className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold">
+                商圏マップに戻す
+              </button>
+            </div>
+          )}
           <MapView
             center={[center.lat, center.lng]}
-            zoom={15}
+            zoom={nightMode ? 16 : 15}
             className="h-80 w-full"
             zones={zones}
             lines={lines}
+            markers={markers}
             activeZone={active}
           />
+          {night.mode && !night.data && (
+            <p className="px-4 pt-2 text-xs font-bold text-ink-soft">{night.error || "① 駅の出口を探しています… ② 出口から先の人の流れを読んでいます… ③ 飲み屋街を分析しています…"}</p>
+          )}
           {/* 凡例：番号・色・名前を並べ、タップでその商圏を強調する */}
           <ul className="flex flex-wrap gap-1.5 px-4 py-2">
             {zones.map((z) => (
@@ -139,13 +194,24 @@ function LectureView({
             ))}
           </ul>
           {zones.every((z) => !z.polygon) && zones.length > 0 && (
-            <p className="px-4 pb-1 text-[10px] text-ink-soft">円は各商圏のおおよその範囲です</p>
+            <p className="px-4 pb-1 text-[10px] text-ink-soft">円は各{nightMode ? "飲み屋街" : "商圏"}のおおよその範囲です</p>
           )}
-          {lines.some((l) => l.points.length >= 2) && (
-            <p className="px-4 pb-2 text-[10px] text-ink-soft">点線：店と店の補完関係・集積（線をタップすると内容が出ます）</p>
+          {nightMode ? (
+            <p className="px-4 pb-2 text-[10px] text-ink-soft">
+              🚉 は駅の出口
+              {night.data!.map.exits.some((e) => e.approx) && "（位置がおおよそのものを含む）"}。点線は出口から飲み屋街への人の流れ（線をタップすると内容が出ます）
+            </p>
+          ) : (
+            lines.some((l) => l.points.length >= 2) && (
+              <p className="px-4 pb-2 text-[10px] text-ink-soft">点線：店と店の補完関係・集積（線をタップすると内容が出ます）</p>
+            )
           )}
         </div>
       )}
+
+      <div className="px-4">
+        <Deck unchiku={lecture.unchiku} placeName={lecture.placeName} />
+      </div>
 
       <div className="space-y-4 px-4">
         {lecture.updates.length > 0 && <Updates updates={lecture.updates} />}
@@ -168,26 +234,13 @@ function LectureView({
           </a>
         </article>
 
-        <div>
-          <h2 className="mb-2 text-sm font-black">💬 会話デッキ：そのまま使えるうんちく</h2>
-          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1">
-            {lecture.unchiku.map((u, i) => (
-              <div key={i} className="w-64 shrink-0 snap-start rounded-2xl bg-foreground p-4 text-white">
-                <p className="text-[10px] font-bold text-accent-soft">CARD {i + 1}</p>
-                <p className="mt-1 font-bold leading-snug">「{u.line}」</p>
-                <p className="mt-2 text-xs leading-relaxed text-white/70">{u.explanation}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {data.news.length > 0 && (
           <Section title="📰 最近の街のニュース">
             <NewsList items={data.news} />
           </Section>
         )}
 
-        <Details lecture={lecture} active={active} setActive={setActive} />
+        <Details lecture={lecture} active={active} setActive={setActive} night={night} onOpenNight={openNight} />
 
         <Section title="🚶 商圏を体感する歩き方">
           <p className="text-sm leading-relaxed">{lecture.walkRoute}</p>
@@ -293,16 +346,187 @@ function TodayPickup({ lecture, seed }: { lecture: Lecture; seed: string }) {
 }
 
 /** 項目別の詳しい分析。その街の主役（focus）を先頭に置いて開いておく */
+type Night = ReturnType<typeof useNightlife>;
+
+/** 飲み屋街の分析を、開いたときに読み込む（地図の切り替えにも使う） */
+function useNightlife(key: string) {
+  const [mode, setMode] = useState(false);
+  const [data, setData] = useState<NightlifeView | null>(null);
+  const [error, setError] = useState("");
+  const loading = useRef(false);
+
+  const open = useCallback(() => {
+    setMode(true);
+    if (data || loading.current) return;
+    loading.current = true;
+    setError("");
+    fetch("/api/nightlife", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) setError(j.error ?? "飲み屋街の分析を読み込めませんでした。");
+        else setData(j.nightlife);
+      })
+      .catch(() => setError("通信に失敗しました。"))
+      .finally(() => (loading.current = false));
+  }, [key, data]);
+  const close = useCallback(() => setMode(false), []);
+  return { mode, data, error, open, close };
+}
+
+/** 会話デッキ：問いかけのカード。タップすると答え（商圏の理由）が出る */
+function Deck({ unchiku, placeName }: { unchiku: Lecture["unchiku"]; placeName: string }) {
+  const [open, setOpen] = useState<number[]>([]);
+  return (
+    <div>
+      <h2 className="text-sm font-black">💬 会話デッキ：{placeName}の「なんで？」</h2>
+      <p className="mb-2 text-[11px] text-ink-soft">タップすると、その理由を商圏で答えます</p>
+      <div className="-mx-4 flex snap-x items-start gap-3 overflow-x-auto px-4 pb-1">
+        {unchiku.map((u, i) => {
+          const shown = open.includes(i);
+          return (
+            <button
+              key={i}
+              onClick={() => setOpen(shown ? open.filter((x) => x !== i) : [...open, i])}
+              className="flex w-64 shrink-0 snap-start flex-col rounded-2xl bg-foreground p-4 text-left text-white"
+            >
+              <p className="text-[10px] font-bold text-accent-soft">Q{i + 1}</p>
+              <p className="mt-1 font-bold leading-snug">{u.line}</p>
+              {shown ? (
+                <p className="mt-2 text-xs leading-relaxed text-white/80">
+                  <b className="text-accent-soft">A. </b>
+                  {u.explanation}
+                </p>
+              ) : (
+                <p className="mt-3 text-[11px] font-bold text-accent-soft">答えを見る →</p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DaytimeBody({ daytime }: { daytime: Lecture["daytime"] }) {
+  return (
+    <div>
+      <p className="text-sm font-bold leading-relaxed">{daytime.summary}</p>
+      <ol className="mt-3 space-y-3 border-l-2 border-line pl-3">
+        {daytime.slots.map((s) => (
+          <li key={s.time} className="text-sm leading-relaxed">
+            <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-black text-accent">{s.time}</span>
+            <span className="ml-1.5 font-bold">{s.who}</span>
+            <br />
+            <span className="text-xs text-ink-soft">場所：{s.where}</span>
+            <br />
+            {s.scene}
+            {s.tip && <span className="mt-0.5 block text-xs text-ink-soft">👉 {s.tip}</span>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function NightBody({ night, onShowMap }: { night: Night; onShowMap: () => void }) {
+  const n = night.data;
+  if (!n) {
+    return (
+      <p className="text-xs font-bold text-ink-soft">
+        {night.error || "① 駅の出口を探しています… ② 出口から先の人の流れを読んでいます… ③ 飲み屋街を分析しています…"}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-bold leading-relaxed">{n.summary}</p>
+      <button onClick={onShowMap} className="w-full rounded-xl border border-foreground py-2 text-xs font-bold">
+        🗺️ 地図で見る（出口・人の流れ・飲み屋街）
+      </button>
+
+      <div>
+        <p className="text-xs font-black">① 駅の出口（{n.exits.length}か所）</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {n.exits.map((x) => (
+            <span key={x.name} className="rounded-full bg-foreground px-2 py-0.5 text-[11px] font-bold text-white">
+              🚉 {x.name}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-black">② 出口から先の人の流れ</p>
+        <ul className="mt-1.5 space-y-2">
+          {n.exits.map((x) => (
+            <li key={x.name} className="text-sm leading-relaxed">
+              <b>{x.name}</b>：{x.flow}
+              <br />
+              <span className="text-xs text-ink-soft">流れをつくる人：{x.who}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div>
+        <p className="text-xs font-black">③ 飲み屋街の商圏</p>
+        <ul className="mt-1.5 space-y-3">
+          {n.districts.map((d, i) => (
+            <li key={d.name} className="rounded-xl bg-background p-3 text-sm leading-relaxed">
+              <p className="flex flex-wrap items-center gap-1.5 font-black">
+                <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: zoneColor(i) }} />
+                {i + 1}. {d.name}
+              </p>
+              <p className="mt-1 flex flex-wrap gap-1">
+                <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{d.vibe}</span>
+                <span className="rounded bg-card px-1.5 py-0.5 text-[10px] font-bold">予算：{d.budget}</span>
+                <span className="rounded bg-card px-1.5 py-0.5 text-[10px] font-bold">🕘 {d.hours}</span>
+              </p>
+              <p className="mt-1 text-xs text-ink-soft">
+                {d.area}／客層：{d.target}
+              </p>
+              <p className="mt-1">{d.atmosphere}</p>
+              <p className="mt-1 text-xs">🍶 {d.howToEnjoy}</p>
+              {d.fromExits.length > 0 && <p className="mt-1 text-[11px] text-ink-soft">流れてくる出口：{d.fromExits.join("・")}</p>}
+              {d.caution && <p className="mt-1 text-[11px] font-bold text-red-700">⚠️ {d.caution}</p>}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="rounded-xl bg-accent-soft p-3 text-xs leading-relaxed">
+        <b>大人の一晩の回り方：</b>
+        {n.hopping}
+      </p>
+      <p className="text-[10px] leading-relaxed text-ink-soft">
+        {n.source === "ai"
+          ? `AIが OpenStreetMap の出口${n.dataUsed.osmExits}か所・飲み屋${n.dataUsed.osmBars}軒の位置とWebの情報から分析（${n.generatedAt?.slice(0, 10)}）`
+          : "Claude Code が公開情報から作成した分析です。APIキーがあると、地図の店の位置で分析し直します。"}
+        {n.map.exits.some((e) => e.approx) && " 出口の位置にはおおよそのものを含みます。"}
+        出口の位置：© OpenStreetMap contributors
+      </p>
+    </div>
+  );
+}
+
 function Details({
   lecture,
   active,
   setActive,
+  night,
+  onOpenNight,
 }: {
   lecture: Lecture;
   active: number | null;
   setActive: (n: number | null) => void;
+  night: Night;
+  onOpenNight: () => void;
 }) {
-  const sections: { key: FocusType; title: string; body: React.ReactNode; show: boolean }[] = [
+  const sections: { key: FocusType | "昼の街" | "飲み屋街"; title: string; body: React.ReactNode; show: boolean }[] = [
     {
       key: "支える人",
       title: "街を支える人とニーズ",
@@ -431,6 +655,15 @@ function Details({
       ),
     },
   ];
+  sections.push(
+    { key: "昼の街", title: "☀️ 昼の街（朝・ランチ・午後・休日）", show: !!lecture.daytime, body: lecture.daytime && <DaytimeBody daytime={lecture.daytime} /> },
+    {
+      key: "飲み屋街",
+      title: "🍺 飲み屋街（出口 → 人の流れ → 飲み屋街）",
+      show: true,
+      body: <NightBody night={night} onShowMap={onOpenNight} />,
+    },
+  );
   const ordered = [...sections.filter((x) => x.key === lecture.focus), ...sections.filter((x) => x.key !== lecture.focus)];
   return (
     <div>
@@ -439,7 +672,17 @@ function Details({
         {ordered
           .filter((x) => x.show)
           .map((x) => (
-            <details key={x.key} open={x.key === lecture.focus} className="group rounded-2xl border border-line bg-card px-4 py-3">
+            <details
+              key={x.key}
+              open={x.key === lecture.focus}
+              onToggle={(e) => {
+                if (x.key !== "飲み屋街") return;
+                // 飲み屋街を開くと、上の地図を飲み屋街の分布に切り替える
+                if (e.currentTarget.open) onOpenNight();
+                else night.close();
+              }}
+              className={`group rounded-2xl border px-4 py-3 ${x.key === "飲み屋街" ? "border-foreground bg-card" : "border-line bg-card"}`}
+            >
               <summary className="cursor-pointer list-none text-sm font-black text-accent">
                 <span className="mr-1 inline-block transition group-open:rotate-90">›</span>
                 {x.title}

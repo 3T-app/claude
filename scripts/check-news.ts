@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { getArea } from "../src/lib/areas";
 import { GENRES, ALL_GENRES } from "../src/lib/constants";
-import { areaNewsValidator, buzzValidator } from "../src/lib/news";
+import { areaNewsValidator, buzzValidator, globalValidator } from "../src/lib/news";
 
 (async () => {
   const dir = path.join(process.cwd(), "data", "news");
@@ -52,6 +52,24 @@ import { areaNewsValidator, buzzValidator } from "../src/lib/news";
     }
   } catch {
     console.log("buzz.json：なし");
+  }
+  try {
+    const p = globalValidator.safeParse(JSON.parse(await fs.readFile(path.join(dir, "global.json"), "utf8")));
+    if (!p.success) {
+      ng++;
+      console.log(`NG global.json: ${p.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join(" / ")}`);
+    } else {
+      const genres = [ALL_GENRES, ...GENRES] as string[];
+      for (const i of p.data.items) {
+        if (!genres.includes(i.genre) || !date.test(i.date) || !/^https?:\/\//.test(i.url) || (i.areaId && !getArea(i.areaId))) {
+          ng++;
+          console.log(`NG global.json: ${i.title} の業態・日付・URL・areaId`);
+        }
+      }
+      console.log(`global.json：${p.data.items.length}件（${[...new Set(p.data.items.map((i) => i.region))].join("・")}）`);
+    }
+  } catch {
+    console.log("global.json：なし");
   }
   console.log(`街のニュース：${areas}エリア・${items}件`);
   process.exitCode = ng ? 1 : 0;

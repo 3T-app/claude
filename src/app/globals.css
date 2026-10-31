@@ -46,3 +46,14 @@ body {
 .leaflet-tooltip.zone-label::before {
   display: none;
 }
+/* 駅の出口のラベル（飲み屋街マップ） */
+.leaflet-tooltip.exit-label {
+  background: #fff;
+  color: #1f2328;
+  border: 1.5px solid #1f2328;
+  border-radius: 6px;
+  padding: 0 5px;
+  font-weight: 800;
+  font-size: 11px;
+  box-shadow: none;
+}

@@ -42,6 +42,24 @@ const GENERIC_TITLES = ["歴史", "町の歴史", "街の歴史", "商圏の割�
       if (c.body.length < 80) issues.push(`章「${c.title}」が短い`);
     }
     if (/^つまり.+は、昼は/.test(a.conclusion)) templated.push(area.id);
+    // 会話デッキは「なんで？」の問いかけ。答えは explanation に
+    for (const u of a.unchiku) if (!/[？?]/.test(u.line)) issues.push(`会話デッキが問いかけになっていない「${u.line}」`);
+    // 昼の街：4つの時間帯
+    const slots = a.daytime.slots.map((s) => s.time).join(",");
+    if (slots !== "朝,ランチ,午後,休日の昼") issues.push(`昼の街の時間帯 ${slots}`);
+    // 飲み屋街：出口と飲み屋街、出口の名前の対応、位置
+    const n = a.nightlife;
+    if (!n) issues.push("飲み屋街の分析がない");
+    else {
+      if (n.exits.length < 2) issues.push(`出口 ${n.exits.length}`);
+      if (n.districts.length < 2 || n.districts.length > 6) issues.push(`飲み屋街 ${n.districts.length}`);
+      const exitNames = new Set(n.exits.map((x) => x.name));
+      for (const d of n.districts) {
+        for (const e of d.fromExits) if (!exitNames.has(e)) issues.push(`${d.name} の出口「${e}」が出口一覧にない`);
+        const dist = distanceM(area.lat, area.lng, d.anchor.lat, d.anchor.lng);
+        if (dist > 2000) issues.push(`${d.name} が中心から ${Math.round(dist)}m`);
+      }
+    }
     if (issues.length) {
       problems++;
       console.log(`NG ${area.id}: ${issues.join(" / ")}`);

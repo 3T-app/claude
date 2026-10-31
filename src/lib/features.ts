@@ -2,11 +2,12 @@ import { promises as fs } from "fs";
 import path from "path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { formatAnalysis, loadAnalysisLecture, readAnalysis } from "./analyses";
-import { formatAreaNews, formatBuzz, readAreaNews, readBuzz, type AreaNewsItem, type BuzzItem } from "./news";
+import { formatAreaNews, formatBuzz, formatGlobal, readAreaNews, readBuzz, readGlobal, type AreaNewsItem, type BuzzItem, type GlobalItem } from "./news";
 import { AREAS, distanceM, getArea, nearestAreas, type Area } from "./areas";
 import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claude";
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
 import { geocode, type GeoPoint } from "./geocode";
+import { nightlifeContext } from "./nightlife";
 import { baseSystem, findInsights, formatInsights, getAreaNote } from "./knowledge";
 import {
   diagnosisSchema,
@@ -256,6 +257,8 @@ async function generateLecture(o: {
     "",
     "分析の進め方：",
     "- 運営の「街の商圏の分析手順」の1〜8の順に考え、お手本（池袋）と同じ具体性で書く。店や施設は実在の名前で書く。",
+    "- daytime（昼の街）は、朝・ランチ・午後・休日の昼の4つの時間帯で、誰がどこに何をしに来るかを、実在の通りや店の名前で書く。",
+    "- unchiku（会話デッキ）は運営の教えの「会話デッキの書き方」に従い、その街のイメージと違う店・ものがなぜ成り立つのかを、商圏で答える問いにする。",
     "- 書き方は運営の教えの「講義の書き方」に従う。この街ならではの切り口（angle）を一つ決め、chapters はその切り口に沿った読み物にする。どの街にも使える決まり文句や見出しは使わない。",
     "- zones の poiIds と relations の poiIds には、地図の店一覧にある id だけを使う（作らない）。一覧にない店は places の名前だけで書き、poiIds は空にする。",
     "- zones の anchor は、その商圏の店が集まっている場所の中心と広がり。地図の店の座標から決める。",
@@ -318,9 +321,12 @@ export async function answerLectureQuestion(areaKey: string, question: string, h
     "",
     `<講義の内容>\n${JSON.stringify({ ...lecture, map: undefined })}\n</講義の内容>`,
     `<みんなの投稿>\n${formatInsights(insights)}\n</みんなの投稿>`,
+    area ? `<この街の飲み屋街>\n${(await nightlifeContext(area.id)) || "（分析なし）"}\n</この街の飲み屋街>` : "",
     "",
     ANSWER_RULE,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
   return askText({ system, messages: chatMessages(history, question), effort: "low" });
 }
 
@@ -415,17 +421,19 @@ export interface TrendBundle {
   youtube: YouTubeVideo[];
   notes: TrendNote[];
   buzz: BuzzItem[];
+  global: GlobalItem[];
 }
 
-/** 流行の材料をまとめて集める：手入れのSNSメモ ＋ ニュース巡回 ＋ YouTube ＋ Web巡回 */
+/** 流行の材料をまとめて集める：手入れのSNSメモ ＋ ニュース巡回 ＋ 海外の話題 ＋ YouTube ＋ Web巡回 */
 export async function getTrendBundle(genre: string): Promise<TrendBundle> {
-  const [web, youtube, notes, buzz] = await Promise.all([
+  const [web, youtube, notes, buzz, global] = await Promise.all([
     getTrend(genre),
     safe("youtube", youtubeTrends(genre)),
     recentNotes(genre),
     readBuzz(genre),
+    readGlobal(genre),
   ]);
-  return { web, youtube: youtube ?? [], notes, buzz };
+  return { web, youtube: youtube ?? [], notes, buzz, global };
 }
 
 // ─────────────────────────────────────────────
@@ -527,6 +535,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     `<区市の人口・世帯（e-Stat）>\n${formatCityStats(city)}\n</区市の人口・世帯>`,
     `<${input.genre}の流行：運営がX・Instagramなどから手で集めたメモ（最優先で参考にする）>\n${formatNotes(trend.notes)}\n</流行メモ>`,
     `<${input.genre}の流行：ニュースで話題の食べ物・お店（毎日の巡回）>\n${formatBuzz(trend.buzz)}\n</ニュースで話題>`,
+    `<${input.genre}の流行：海外で話題のもの・日本に上陸したもの・訪日客が東京で探しているもの（毎日の巡回）>\n${formatGlobal(trend.global)}\n</海外の話題>`,
     areaNews.length ? `<${homeArea!.name}の最近の街のニュース（開業・閉店・再開発など）>\n${formatAreaNews(areaNews)}\n</最近の街のニュース>` : "",
     `<${input.genre}の流行：YouTubeで直近30日に再生が多い動画>\n${formatYouTube(trend.youtube)}\n</YouTube>`,
     `<${input.genre}の流行：Web記事の巡回>\n${trend.web.report}\n</Web記事の巡回>`,
@@ -534,7 +543,8 @@ export async function diagnose(input: { name: string; address: string; genre: st
     `評価軸は必ず ${INDICATORS.join("・")} の5つをこの順で出してください。`,
     "3を「平均的」とし、根拠が乏しい場合は3に寄せ、その旨を caveats に書いてください。",
     "数字のデータ（同業の軒数、一人暮らしの割合、昼夜間人口比など）がある軸は、その数字を reason に必ず引用してください。データがない軸は推定であることを書いてください。",
-    "trendFit とバズるメニューは、流行メモ・ニュース・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
+    "trendFit とバズるメニューは、流行メモ・ニュース・海外の話題・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
+    "海外の話題は、日本にまだ広まっていない「先取り」のメニュー案や、訪日客を呼び込む工夫として使ってください。",
     "最近の街のニュース（近くの開業・閉店・再開発）は、競合性と接続性の評価に反映してください。",
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
     "運営の「立地調査での使いかた」に沿って、まず zoneFit（どの商圏の中・端・外か）を決め、次に relations（周りの実在の店との補完・集積・価格競争）を書き、その読みを5つの軸の点数の根拠にしてください。",
