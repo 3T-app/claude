@@ -348,6 +348,29 @@ function TodayPickup({ lecture, seed }: { lecture: Lecture; seed: string }) {
 /** 項目別の詳しい分析。その街の主役（focus）を先頭に置いて開いておく */
 type Night = ReturnType<typeof useNightlife>;
 
+const ADULT_KEY = "adult-confirmed";
+
+/** 飲み屋街を開く前の年齢の確認 */
+function AgeGate({ open, onYes, onNo }: { open: boolean; onYes: () => void; onNo: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/40" onClick={onNo}>
+      <div className="w-full max-w-md rounded-t-3xl bg-card p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="text-lg font-black">あなたは18歳以上ですか？</p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          飲み屋街のページには、お酒の店や夜の繁華街（キャバクラ・ホストクラブなど）の情報が含まれます。18歳以上の方だけご覧ください。
+        </p>
+        <button onClick={onYes} className="mt-4 w-full rounded-xl bg-foreground py-3 font-bold text-white">
+          はい（18歳以上です）
+        </button>
+        <button onClick={onNo} className="mt-2 w-full rounded-xl border border-line py-3 text-sm font-bold">
+          いいえ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** 飲み屋街の分析を、開いたときに読み込む（地図の切り替えにも使う） */
 function useNightlife(key: string) {
   const [mode, setMode] = useState(false);
@@ -526,6 +549,15 @@ function Details({
   night: Night;
   onOpenNight: () => void;
 }) {
+  const [adult, setAdult] = useState(false);
+  const [askAge, setAskAge] = useState(false);
+  const [denied, setDenied] = useState(false);
+  const nightRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    try {
+      setAdult(localStorage.getItem(ADULT_KEY) === "yes");
+    } catch {}
+  }, []);
   const sections: { key: FocusType | "昼の街" | "飲み屋街"; title: string; body: React.ReactNode; show: boolean }[] = [
     {
       key: "支える人",
@@ -667,13 +699,36 @@ function Details({
   const ordered = [...sections.filter((x) => x.key === lecture.focus), ...sections.filter((x) => x.key !== lecture.focus)];
   return (
     <div>
+      <AgeGate
+        open={askAge}
+        onYes={() => {
+          setAdult(true);
+          setAskAge(false);
+          setDenied(false);
+          try {
+            localStorage.setItem(ADULT_KEY, "yes");
+          } catch {}
+          // 開くと onToggle が呼ばれ、地図が飲み屋街に切り替わる
+          if (nightRef.current) nightRef.current.open = true;
+        }}
+        onNo={() => {
+          setAskAge(false);
+          setDenied(true);
+        }}
+      />
       <h2 className="mb-2 text-sm font-black">🔍 もっと詳しく</h2>
+      {denied && !adult && (
+        <p className="mb-2 rounded-xl bg-background p-2.5 text-xs text-ink-soft">
+          飲み屋街は18歳以上の方向けの内容のため、表示していません。
+        </p>
+      )}
       <div className="space-y-2">
         {ordered
           .filter((x) => x.show)
           .map((x) => (
             <details
               key={x.key}
+              ref={x.key === "飲み屋街" ? nightRef : undefined}
               open={x.key === lecture.focus}
               onToggle={(e) => {
                 if (x.key !== "飲み屋街") return;
@@ -683,9 +738,19 @@ function Details({
               }}
               className={`group rounded-2xl border px-4 py-3 ${x.key === "飲み屋街" ? "border-foreground bg-card" : "border-line bg-card"}`}
             >
-              <summary className="cursor-pointer list-none text-sm font-black text-accent">
+              <summary
+                className="cursor-pointer list-none text-sm font-black text-accent"
+                onClick={(e) => {
+                  // 飲み屋街は18歳以上の方だけ。開く前に年齢を確かめる
+                  if (x.key === "飲み屋街" && !adult && !e.currentTarget.parentElement?.hasAttribute("open")) {
+                    e.preventDefault();
+                    setAskAge(true);
+                  }
+                }}
+              >
                 <span className="mr-1 inline-block transition group-open:rotate-90">›</span>
                 {x.title}
+                {x.key === "飲み屋街" && <span className="ml-1.5 rounded bg-foreground px-1.5 py-0.5 text-[10px] text-white">18歳以上</span>}
                 {x.key === lecture.focus && (
                   <span className="ml-1.5 rounded bg-accent px-1.5 py-0.5 text-[10px] text-white">この街の主役</span>
                 )}

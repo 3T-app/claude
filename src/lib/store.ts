@@ -76,6 +76,8 @@ interface DB {
   lectures: Record<string, { data: unknown; postCount: number | string; createdAt: string }>;
   /** 飲み屋街の分析（AIが作ったもの） */
   nightlife: Record<string, { data: unknown; createdAt: string; version: string }>;
+  /** 商圏を考える（出店問題）のコメントの回数（「uid:日付」ごと） */
+  exerciseUsage: Record<string, number>;
   /** AIへの有料の質問（1回ごとに支払い） */
   questions: Record<string, StoredQuestion>;
   /** 立地調査の結果（支払いの画面から戻ったときに表示し直すため） */
@@ -88,7 +90,7 @@ interface DB {
   areaNotes: Record<string, string>;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, questions: {}, diagnoses: {}, sourceCache: {}, teachings: "", areaNotes: {} };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, exerciseUsage: {}, questions: {}, diagnoses: {}, sourceCache: {}, teachings: "", areaNotes: {} };
 
 let queue: Promise<unknown> = Promise.resolve();
 

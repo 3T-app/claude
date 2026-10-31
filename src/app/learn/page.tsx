@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import MapView from "@/components/MapView";
@@ -23,6 +24,15 @@ export default function LearnPage() {
   return (
     <div>
       <PageHeader title="東京のどこを学びたいですか？" sub="街を選ぶと、その街全体の商圏をAIが講義します。" />
+
+      <Link href="/learn/basics" className="mx-4 mb-3 block rounded-2xl border border-foreground bg-card p-4">
+        <p className="text-[11px] font-bold text-accent">はじめての人はここから</p>
+        <p className="mt-0.5 text-base font-black">📘 商圏そのものを学ぶ</p>
+        <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+          📇 用語・概念カード（集積・補完・人の流れ など）と、🧠 商圏を考える（東京のランダムな場所の出店問題にAIがコメント）
+        </p>
+        <p className="mt-2 text-xs font-bold text-accent">学びはじめる →</p>
+      </Link>
 
       <form
         className="mx-4 flex gap-2"

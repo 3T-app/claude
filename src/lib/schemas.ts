@@ -360,3 +360,20 @@ export interface NightlifeView extends Nightlife {
   generatedAt?: string;
   dataUsed: { osmExits: number; osmBars: number };
 }
+
+// ── 商圏を考える（出店問題）へのコメント ──
+export const exerciseSchema = obj({
+  good: { type: "string", description: "答えの良いところ（商圏の見かたが使えている点）" },
+  missing: { type: "string", description: "まだ考えられていない見かた" },
+  hint: { type: "string", description: "次に考えると深まる問い" },
+  model: { type: "string", description: "考え方の一例（3〜4文）" },
+  terms: { ...strArr, description: "答えに関係する用語（1〜3個）" },
+});
+export const exerciseValidator = z.object({
+  good: z.string(),
+  missing: z.string(),
+  hint: z.string(),
+  model: z.string(),
+  terms: z.array(z.string()),
+});
+export type ExerciseComment = z.infer<typeof exerciseValidator>;
