@@ -5,6 +5,7 @@ import { adminAuthorized as authorized, adminDenied } from "@/lib/admin";
 import { estatEnabled } from "@/lib/sources/estat";
 import { hotpepperEnabled } from "@/lib/sources/hotpepper";
 import { youtubeEnabled } from "@/lib/sources/youtube";
+import { envFileProblem } from "@/lib/envcheck";
 import { getTeachings } from "@/lib/knowledge";
 import { readDB, reactionCount, updateDB } from "@/lib/store";
 
@@ -28,6 +29,7 @@ export async function GET(req: Request) {
     insights,
     trends: Object.values(db.trends).map(({ genre, fetchedAt, by }) => ({ genre, fetchedAt, by })),
     notes: [...db.trendNotes].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 50),
+    envProblem: envFileProblem(),
     sources: {
       claude: !!process.env.ANTHROPIC_API_KEY,
       stripe: !!process.env.STRIPE_SECRET_KEY,

@@ -12,6 +12,7 @@ interface AdminData {
   trends: { genre: string; fetchedAt: string; by: string }[];
   stats: { posts: number; lectures: number };
   notes: TrendNote[];
+  envProblem: string | null;
   sources: { claude: boolean; stripe: boolean; youtube: boolean; hotpepper: boolean; estat: boolean };
   model: string;
   demo: boolean;
@@ -83,7 +84,7 @@ export default function AdminPage() {
               モデル：{data.model}　{data.demo ? "（デモモード）" : ""}　投稿 {data.stats.posts} 件・作成済み講義 {data.stats.lectures} 件
             </p>
             <TrendNotesCard token={token} notes={data.notes} onChange={() => load(token)} />
-            <SourcesCard token={token} sources={data.sources} />
+            <SourcesCard token={token} sources={data.sources} envProblem={data.envProblem} />
             <AreaNotesCard token={token} />
             <Card>
               <h2 className="text-sm font-black">運営からの教え</h2>
@@ -243,7 +244,7 @@ function TrendNotesCard({ token, notes, onChange }: { token: string; notes: Tren
   );
 }
 
-function SourcesCard({ token, sources }: { token: string; sources: AdminData["sources"] }) {
+function SourcesCard({ token, sources, envProblem }: { token: string; sources: AdminData["sources"]; envProblem: string | null }) {
   const [result, setResult] = useState<Record<string, { ok: boolean; message: string }> | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -257,6 +258,7 @@ function SourcesCard({ token, sources }: { token: string; sources: AdminData["so
   return (
     <Card>
       <h2 className="text-sm font-black">🔌 接続テスト（Claude API・決済・外部データ）</h2>
+      {envProblem && <p className="mt-2 rounded-xl bg-accent-soft p-3 text-xs font-bold leading-relaxed text-red-700">⚠️ {envProblem}</p>}
       <ul className="mt-2 space-y-1.5 text-xs">
         {(Object.keys(SOURCE_NAMES) as (keyof typeof SOURCE_NAMES)[]).map((k) => (
           <li key={k}>
