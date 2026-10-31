@@ -123,6 +123,9 @@ X・Instagram本体は、ログインが必要なうえ利用規約で自動取�
 
 ## 起動
 
+**Windows でいちばん簡単な方法**：フォルダの中の `start-app.bat` をダブルクリックする（そのフォルダで `npm install` と `npm run phone` を実行し、アプリと管理画面のURLを表示する）。
+
+
 ```bash
 npm install
 cp .env.example .env.local   # ANTHROPIC_API_KEY と ADMIN_TOKEN を設定
