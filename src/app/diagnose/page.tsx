@@ -278,6 +278,31 @@ function Report({ result, name }: { result: SavedDiagnosis; name: string }) {
 
         <LocalDataCard result={result} />
 
+        {(result.community?.length ?? 0) > 0 && (
+          <Card>
+            <h3 className="text-sm font-black text-accent">👥 みんなの投稿で見つかった組み合わせ</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+              街歩きで誰かが「気づいた」店の組み合わせは、客が実際に流れている（補完関係が強い）証拠です。全国の投稿から、この業態がかかわるものと、店の近くのものを使っています。
+            </p>
+            <ul className="mt-2 space-y-2">
+              {result.community!.slice(0, 6).map((c, i) => (
+                <li key={i} className="text-xs leading-relaxed">
+                  <span className="mr-1 rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">{c.near ? `店の近く・${c.place}` : c.place}</span>
+                  {c.relation !== "その他" && (
+                    <span className="text-[10px] font-bold text-accent">
+                      {c.relation}
+                      {c.pair.length ? `：${c.pair.join("×")}` : ""}
+                    </span>
+                  )}
+                  <br />
+                  {c.summary}
+                  <span className="text-ink-soft">（👍{c.reactions}）</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {result.areaNews.length > 0 && (
           <Card>
             <h3 className="text-sm font-black text-accent">📰 近くの街の最近のニュース</h3>
@@ -438,6 +463,7 @@ function LocalDataCard({ result }: { result: DiagnosisResult }) {
 
 function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend"]; genre: string; trendFit: string }) {
   const { web, youtube, notes } = bundle;
+  const youtubeGlobal = bundle.youtubeGlobal ?? [];
   return (
     <Card>
       <h3 className="text-sm font-black text-accent">📈 {genre}で今はやっているもの</h3>
@@ -509,6 +535,32 @@ function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend
               </li>
             ))}
           </ul>
+        </details>
+      )}
+
+      {youtubeGlobal.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-bold">🌏 海外のYouTubeで伸びている動画（韓国・台湾・アメリカ）</summary>
+          <div className="mt-1 space-y-2">
+            {youtubeGlobal.map((r) => (
+              <div key={r.region}>
+                <p className="text-[11px] font-bold">
+                  {r.region}
+                  <span className="font-normal text-ink-soft">（検索：{r.query}）</span>
+                </p>
+                <ul className="space-y-1">
+                  {r.videos.map((v) => (
+                    <li key={v.url} className="text-[11px] leading-relaxed">
+                      <a href={v.url} target="_blank" rel="noreferrer" className="underline">
+                        {v.title}
+                      </a>
+                      <span className="text-ink-soft">　{Math.round(v.views / 1000).toLocaleString("ja-JP")}千回</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </details>
       )}
 

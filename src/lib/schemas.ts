@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { INDICATORS } from "./constants";
+import { INDICATORS, INSIGHT_RELATIONS } from "./constants";
 
 // 構造化出力で使うJSONスキーマ（API側）と、受け取り後の検証（zod）を対で定義する。
 
@@ -18,6 +18,9 @@ export const RELATION_TYPES = ["補完（はしご）", "補完（呼び込み�
 /** 「もっと詳しく」の中で最初に開いておく項目（＝その街の分析の主役） */
 export const FOCUS_TYPES = ["支える人", "商圏の割れ方", "店と店の関係", "歴史と名残", "新しい勢力", "通りの違い", "昼と夜"] as const;
 export type FocusType = (typeof FOCUS_TYPES)[number];
+
+/** 土地と再開発の進み方（駅のまわりの土地を誰が持っているかで、商圏の変わる速さと大きさが決まる） */
+export const LAND_PACES = ["速い・大規模", "ゆっくり・段階的", "場所による", "わからない"] as const;
 
 /** 昼の街の時間帯 */
 export const DAY_SLOTS = ["朝", "ランチ", "午後", "休日の昼"] as const;
@@ -124,6 +127,27 @@ export const lectureSchema = obj({
   },
   walkRoute: { type: "string", description: "商圏の割れ方と補完関係を体感できる歩き方" },
   communityNote: { type: "string", description: "みんなの投稿から分かること。投稿がなければ空文字" },
+  land: obj({
+    summary: {
+      type: "string",
+      description:
+        "駅のまわりの土地を誰が持っているか（鉄道会社・大手デベロッパー・寺社・行政・多くの小さな地権者など）と、それが再開発の速さと大きさ、つまり商圏の変わり方にどう効いているかを2〜3文で。公開情報（自治体の都市計画・ニュース）で確かめられないことは書かない",
+    },
+    pace: { type: "string", enum: [...LAND_PACES], description: "この街の商圏が大きく変わる速さ。確かめられなければ「わからない」" },
+    holders: {
+      type: "array",
+      description: "主な土地の持ち主・開発の担い手。0〜4個。確かめられなければ空配列",
+      items: obj({
+        who: { type: "string", description: "誰が（例：JR東日本、三井不動産、浅草寺、区、地権者94人の再開発準備組合）" },
+        where: { type: "string", description: "どこの土地・建物か" },
+        effect: { type: "string", description: "それが商圏の変わり方にどう効くか（例：一社で決められるので大規模に一気に変わる／合意に時間がかかる）" },
+      }),
+    },
+    compare: obj({
+      areaId: { type: "string", description: "比べると分かりやすい東京の別の街のid（例：shinjuku）。なければ空文字" },
+      text: { type: "string", description: "その街と比べると何が違うかを1〜2文。なければ空文字" },
+    }),
+  }),
 });
 
 const anchorV = z.object({ lat: z.number(), lng: z.number(), radiusM: z.number() });
@@ -169,6 +193,14 @@ export const lectureValidator = z.object({
   unchiku: z.array(z.object({ line: z.string(), explanation: z.string() })),
   walkRoute: z.string(),
   communityNote: z.string(),
+  land: z
+    .object({
+      summary: z.string(),
+      pace: z.enum(LAND_PACES),
+      holders: z.array(z.object({ who: z.string(), where: z.string(), effect: z.string() })),
+      compare: z.object({ areaId: z.string(), text: z.string() }),
+    })
+    .optional(),
 });
 export type LectureAI = z.infer<typeof lectureValidator>;
 
@@ -261,6 +293,12 @@ export const insightSchema = obj({
   mechanism: { type: "string", description: "なぜその組み合わせ・立地が客を呼ぶのか（1〜2文）" },
   tags: strArr,
   quality: { type: "integer", description: "他の分析に役立つ度合い。1〜5" },
+  relation: {
+    type: "string",
+    enum: [...INSIGHT_RELATIONS],
+    description: "気づいた組み合わせが、店と店のどんな関係か。人が気づいた組み合わせは、補完関係が強く効いている証拠として読む",
+  },
+  pair: { ...strArr, description: "関係している店・施設の種類（例：丼屋、ジェラート店）。店名ではなく種類で0〜3個" },
 });
 
 export const insightValidator = z.object({
@@ -270,6 +308,8 @@ export const insightValidator = z.object({
   mechanism: z.string(),
   tags: z.array(z.string()),
   quality: clamp,
+  relation: z.enum(INSIGHT_RELATIONS),
+  pair: z.array(z.string()),
 });
 
 // ── 飲み屋街（商圏を学ぼう → もっと詳しく → 飲み屋街） ──

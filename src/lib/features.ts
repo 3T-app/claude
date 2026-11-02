@@ -8,6 +8,7 @@ import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claud
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
 import { geocode, type GeoPoint } from "./geocode";
 import { nightlifeContext } from "./nightlife";
+import { postPlaceName } from "./posts";
 import { baseSystem, findInsights, formatInsights, getAreaNote } from "./knowledge";
 import {
   diagnosisSchema,
@@ -25,7 +26,7 @@ import { formatPois, poisAround, type Poi } from "./sources/osm";
 import { ALL_GENRES, GENRE_SLUGS } from "./constants";
 import { cityStats, formatCityStats, type CityStats } from "./sources/estat";
 import { competition, composition, formatCompetition, formatComposition, type Competition } from "./sources/hotpepper";
-import { formatYouTube, youtubeTrends, type YouTubeVideo } from "./sources/youtube";
+import { formatYouTube, formatYouTubeGlobal, youtubeGlobalTrends, youtubeTrends, type RegionVideos, type YouTubeVideo } from "./sources/youtube";
 import { cached, DATA_DIR, INDICATORS, reactionCount, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -267,6 +268,7 @@ async function generateLecture(o: {
     previous
       ? "- whatsNew には、前回の講義のあとに分かったこと（新しい投稿・リアクションの多い気づき・ニュース・調査メモ）だけを書く。前回と同じ内容や、材料にない変化は書かない。なければ空配列。"
       : "- 前回の講義はないので whatsNew は空配列にする。",
+    "- land（土地と再開発）は、駅のまわりの土地を誰が持っているか（鉄道会社・大手デベロッパー・寺社・行政・多くの小さな地権者）と、それが再開発の速さと大きさにどう効くかを、運営の教えの「土地と再開発の見かた」に従って書く。事前の分析やニュース・自治体の都市計画で確かめられることだけを書き、確かめられなければ pace を「わからない」、holders を空にする。",
     "- 東京都外の場所なら isTokyo を false にし、他の項目は空でかまわない。",
     "- 読み手はデートや友人との街歩きの前に読む人。専門用語には短い言い換えを添える。",
   ]
@@ -275,8 +277,11 @@ async function generateLecture(o: {
 
   const ai = await askJSON({ system, content, schema: lectureSchema, validator: lectureValidator, effort: "high" });
   const today = todayJST();
+  // 土地と再開発は確かめた事実だけを出す。AIが確かめられなかったときは、事前の分析（調べたもの）を使う
+  const land = ai.land && ai.land.pace !== "わからない" && ai.land.holders.length > 0 ? ai.land : prior?.land ?? ai.land;
   const lecture: Lecture = {
     ...ai,
+    land,
     center,
     map: buildMap(ai, pois ?? []),
     sources: [...(research?.sources ?? []), ...(prior?.sources ?? [])].filter(
@@ -419,6 +424,8 @@ export function formatNotes(notes: TrendNote[]): string {
 export interface TrendBundle {
   web: TrendCache;
   youtube: YouTubeVideo[];
+  /** 韓国・台湾・アメリカの、この業態の流行動画（海外の先取り） */
+  youtubeGlobal?: RegionVideos[];
   notes: TrendNote[];
   buzz: BuzzItem[];
   global: GlobalItem[];
@@ -426,14 +433,15 @@ export interface TrendBundle {
 
 /** 流行の材料をまとめて集める：手入れのSNSメモ ＋ ニュース巡回 ＋ 海外の話題 ＋ YouTube ＋ Web巡回 */
 export async function getTrendBundle(genre: string): Promise<TrendBundle> {
-  const [web, youtube, notes, buzz, global] = await Promise.all([
+  const [web, youtube, youtubeGlobal, notes, buzz, global] = await Promise.all([
     getTrend(genre),
     safe("youtube", youtubeTrends(genre)),
+    safe("youtube", youtubeGlobalTrends(genre)),
     recentNotes(genre),
     readBuzz(genre),
     readGlobal(genre),
   ]);
-  return { web, youtube: youtube ?? [], notes, buzz, global };
+  return { web, youtube: youtube ?? [], youtubeGlobal: youtubeGlobal ?? [], notes, buzz, global };
 }
 
 // ─────────────────────────────────────────────
@@ -451,7 +459,32 @@ export interface DiagnosisResult {
   areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
   relationLines: LatLng[][];
   areaNews: AreaNewsItem[];
+  /** みんなの投稿（全国）で見つかった、この業態がかかわる補完の組み合わせと、店の近くの気づき */
+  community?: { place: string; summary: string; relation: string; pair: string[]; reactions: number; near: boolean }[];
   demo: boolean;
+}
+
+/** 業態の名前を、投稿を探す言葉に分ける（例：カフェ・喫茶 → カフェ、喫茶） */
+function genreWords(genre: string): string[] {
+  return genre.split("・").map((w) => w.trim()).filter((w) => w && w !== "その他");
+}
+
+/** 立地調査で使う投稿：店の近く（2km以内・全国どこでも）と、この業態がかかわる補完の組み合わせ（全国） */
+async function communityFor(point: GeoPoint | null, areaIds: string[], genre: string) {
+  const [local, complements] = await Promise.all([
+    findInsights({ areaIds: areaIds.length ? areaIds : undefined, near: point ? { lat: point.lat, lng: point.lng, radiusM: 2000 } : undefined, limit: 12 }),
+    findInsights({ keywords: genreWords(genre), complementOnly: true, limit: 6 }),
+  ]);
+  const localIds = new Set(local.map((p) => p.id));
+  const view = [...local, ...complements.filter((p) => !localIds.has(p.id))].map((p) => ({
+    place: postPlaceName(p),
+    summary: p.insight!.summary,
+    relation: p.insight!.relation ?? "その他",
+    pair: p.insight!.pair ?? [],
+    reactions: reactionCount(p),
+    near: localIds.has(p.id),
+  }));
+  return { local, complements, view };
 }
 
 export async function diagnose(input: { name: string; address: string; genre: string }): Promise<DiagnosisResult> {
@@ -492,13 +525,14 @@ export async function diagnose(input: { name: string; address: string; genre: st
       areaMap,
       relationLines: [],
       areaNews,
+      community: (await communityFor(point, nearby.filter((n) => n.distance < 2500).map((n) => n.area.id), input.genre)).view,
       demo: true,
     };
   }
 
   const areaIds = nearby.filter((n) => n.distance < 2500).map((n) => n.area.id);
-  const [local, connectionCases] = await Promise.all([
-    findInsights({ areaIds: areaIds.length ? areaIds : undefined, limit: 12 }),
+  const [{ local, complements, view: community }, connectionCases] = await Promise.all([
+    communityFor(point, areaIds, input.genre),
     findInsights({ indicator: "接続性", limit: 6 }),
   ]);
 
@@ -519,6 +553,9 @@ export async function diagnose(input: { name: string; address: string; genre: st
       : "",
     `<周辺のみんなの投稿>\n${formatInsights(local)}\n</周辺のみんなの投稿>`,
     `<接続性について集まった気づき（他の街も含む）>\n${formatInsights(connectionCases)}\n</接続性について集まった気づき>`,
+    complements.length
+      ? `<${input.genre}がかかわる補完の組み合わせ（全国のみんなの投稿。人が気づいた組み合わせ＝補完関係が強い証拠）>\n${formatInsights(complements)}\n</補完の組み合わせ>`
+      : "",
     lectureCache
       ? `<${homeArea!.name}の商圏の割れ方（講義の分析）>\n${lectureCache.zones
           .map((z) => `- ${z.name}（${z.area}、${z.peak}）：${z.character}`)
@@ -538,6 +575,9 @@ export async function diagnose(input: { name: string; address: string; genre: st
     `<${input.genre}の流行：海外で話題のもの・日本に上陸したもの・訪日客が東京で探しているもの（毎日の巡回）>\n${formatGlobal(trend.global)}\n</海外の話題>`,
     areaNews.length ? `<${homeArea!.name}の最近の街のニュース（開業・閉店・再開発など）>\n${formatAreaNews(areaNews)}\n</最近の街のニュース>` : "",
     `<${input.genre}の流行：YouTubeで直近30日に再生が多い動画>\n${formatYouTube(trend.youtube)}\n</YouTube>`,
+    trend.youtubeGlobal?.length
+      ? `<${input.genre}の海外の流行：韓国・台湾・アメリカのYouTubeで直近30日に再生が多い動画（日本に来る前の先取り）>\n${formatYouTubeGlobal(trend.youtubeGlobal)}\n</海外のYouTube>`
+      : "",
     `<${input.genre}の流行：Web記事の巡回>\n${trend.web.report}\n</Web記事の巡回>`,
     "",
     `評価軸は必ず ${INDICATORS.join("・")} の5つをこの順で出してください。`,
@@ -549,6 +589,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
     "運営の「立地調査での使いかた」に沿って、まず zoneFit（どの商圏の中・端・外か）を決め、次に relations（周りの実在の店との補完・集積・価格競争）を書き、その読みを5つの軸の点数の根拠にしてください。",
     "relations の poiIds には、店から半径400m以内の一覧にある id だけを使ってください（作らない）。",
+    "みんなの投稿で見つかった補完の組み合わせ（どの店の種類と組むと客が流れるか）は、店の周りに同じ種類の店があるかを確かめ、接続性の評価と、組む相手の提案に使ってください。",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -580,6 +621,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     areaMap,
     relationLines: point ? relationLines : [],
     areaNews,
+    community,
     demo: false,
   };
 }
@@ -591,11 +633,11 @@ export async function diagnose(input: { name: string; address: string; genre: st
 export async function readPost(opts: {
   image: { data: string; mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" } | null;
   comment: string;
-  areaId: string;
+  /** 投稿の場所の名前（東京の48の街の名前、または「都道府県 場所」） */
+  placeName: string;
 }): Promise<PostInsight | null> {
   if (isDemoMode()) return demoInsight(opts.comment);
 
-  const area = getArea(opts.areaId);
   const system = await baseSystem(
     "あなたの役割は、街歩きをした人が投稿した写真とコメントから、商圏についての気づきを読み取り、分類することです。",
   );
@@ -606,11 +648,12 @@ export async function readPost(opts: {
   content.push({
     type: "text",
     text: [
-      `街：${area?.name ?? opts.areaId}`,
+      `場所：${opts.placeName}`,
       `投稿者のコメント：${opts.comment}`,
       "",
       "この気づきが5つの評価軸のどれに最も関係するかを選び、その立地構成がなぜ客を呼ぶのか（どちらの店・誰にメリットがあるのか）を説明してください。",
-      "誰かが「気づいた」組み合わせは、両方にメリットのある立地構成の証拠として扱ってください。",
+      "誰かが「気づいた」組み合わせは、両方にメリットのある立地構成、つまり補完関係が強く効いている証拠として扱ってください。relation にはその関係（はしご・呼び込み・集積・価格競争）を、pair には関係している店・施設の種類（店名ではなく「丼屋」「ジェラート店」のような種類）を入れてください。",
+      "東京以外の場所の投稿も、同じ深さで読み取ってください（全国版の分析の材料になります）。",
       "写真に写る人の顔や個人を特定する情報には触れないでください。商圏と無関係な投稿は relevant を false にしてください。",
     ].join("\n"),
   });
@@ -618,7 +661,15 @@ export async function readPost(opts: {
   try {
     const r = await askJSON({ system, content, schema: insightSchema, validator: insightValidator, effort: "low" });
     if (!r.relevant) return null;
-    return { indicator: r.indicator, summary: r.summary, mechanism: r.mechanism, tags: r.tags.slice(0, 6), quality: r.quality };
+    return {
+      indicator: r.indicator,
+      summary: r.summary,
+      mechanism: r.mechanism,
+      tags: r.tags.slice(0, 6),
+      quality: r.quality,
+      relation: r.relation,
+      pair: r.pair.slice(0, 3),
+    };
   } catch (err) {
     // 読み取りに失敗しても投稿自体は残す
     if (err instanceof AIError) return null;

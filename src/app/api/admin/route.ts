@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getArea } from "@/lib/areas";
 import { isDemoMode, MODEL } from "@/lib/claude";
 import { adminAuthorized as authorized, adminDenied } from "@/lib/admin";
 import { estatEnabled } from "@/lib/sources/estat";
@@ -7,6 +6,7 @@ import { hotpepperEnabled } from "@/lib/sources/hotpepper";
 import { youtubeEnabled } from "@/lib/sources/youtube";
 import { envFileProblem } from "@/lib/envcheck";
 import { getTeachings } from "@/lib/knowledge";
+import { postPlaceName } from "@/lib/posts";
 import { readDB, reactionCount, updateDB } from "@/lib/store";
 
 // 運営がAIに「何を見てほしいか」を教える画面用。ADMIN_TOKEN で保護する。
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     .filter((p) => p.insight)
     .map((p) => ({
       id: p.id,
-      area: getArea(p.areaId)?.name ?? p.areaId,
+      area: postPlaceName(p),
       comment: p.comment,
       reactions: reactionCount(p),
       ...p.insight!,

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getArea } from "@/lib/areas";
-import type { PublicPost } from "@/lib/posts";
+import { postPlaceName, type PublicPost } from "@/lib/posts";
 import { REACTIONS, type ReactionType } from "@/lib/constants";
 
 function timeAgo(iso: string) {
@@ -16,7 +15,7 @@ function timeAgo(iso: string) {
 
 export default function PostCard({ post, onChange }: { post: PublicPost; onChange: (p: PublicPost) => void }) {
   const [busy, setBusy] = useState(false);
-  const area = getArea(post.areaId);
+  const placeName = postPlaceName(post);
 
   async function react(type: ReactionType) {
     if (busy) return;
@@ -52,22 +51,21 @@ export default function PostCard({ post, onChange }: { post: PublicPost; onChang
         >
           {post.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.image} alt={`${area?.name ?? ""}の街並み`} className="max-h-72 w-full object-cover" />
+            <img src={post.image} alt={`${placeName}の街並み`} className="max-h-72 w-full object-cover" />
           ) : (
             <div className="flex h-24 items-center justify-center bg-gradient-to-br from-accent-soft to-line text-xs text-ink-soft">
               📷 サンプル投稿（写真なし）
             </div>
           )}
           <div className="p-3">
-            {area && (
-              <span className="mb-1 inline-block rounded-full bg-foreground px-2 py-0.5 text-[10px] font-bold text-white">
-                📍 {area.name}
-              </span>
-            )}
+            <span className="mb-1 inline-block rounded-full bg-foreground px-2 py-0.5 text-[10px] font-bold text-white">📍 {placeName}</span>
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.comment}</p>
             {post.insight && (
               <div className="mt-2 rounded-xl bg-background/80 p-2 text-[11px] leading-relaxed">
-                <span className="font-bold text-accent">AIの読み取り｜{post.insight.indicator}</span>
+                <span className="font-bold text-accent">
+                  AIの読み取り｜{post.insight.indicator}
+                  {post.insight.relation && post.insight.relation !== "その他" ? `｜${post.insight.relation}` : ""}
+                </span>
                 <br />
                 {post.insight.mechanism}
               </div>

@@ -111,6 +111,8 @@ export function demoInsight(comment: string): PostInsight {
     mechanism: "デモ表示：APIキー設定後、AIが写真とコメントから立地のしくみを読み取ります。",
     tags: [],
     quality: 2,
+    relation: "その他",
+    pair: [],
   };
 }
 

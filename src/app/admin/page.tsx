@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, PageHeader } from "@/components/ui";
 import { AREAS } from "@/lib/areas";
 import { ALL_GENRES, GENRES, NOTE_SOURCES } from "@/lib/constants";
+import type { OutboundReport } from "@/lib/outbound";
+import type { PostReport } from "@/lib/postReport";
 import type { TrendNote } from "@/lib/store";
 
 interface AdminData {
@@ -83,6 +85,8 @@ export default function AdminPage() {
             <p className="text-xs text-ink-soft">
               モデル：{data.model}　{data.demo ? "（デモモード）" : ""}　投稿 {data.stats.posts} 件・作成済み講義 {data.stats.lectures} 件
             </p>
+            <OutboundCard token={token} />
+            <PostReportCard token={token} />
             <TrendNotesCard token={token} notes={data.notes} onChange={() => load(token)} />
             <SourcesCard token={token} sources={data.sources} envProblem={data.envProblem} />
             <AreaNotesCard token={token} />
@@ -330,6 +334,203 @@ function AreaNotesCard({ token }: { token: string }) {
       <button onClick={save} className="mt-2 w-full rounded-xl bg-foreground py-2.5 text-sm font-bold text-white">
         保存する
       </button>
+    </Card>
+  );
+}
+
+/** 飲み屋街の「お店を探す」（Google マップへの移動）の日ごとの回数と、平均からの増減 */
+function OutboundCard({ token }: { token: string }) {
+  const [report, setReport] = useState<OutboundReport | null>(null);
+  const [analysis, setAnalysis] = useState<{ summary: string; findings: { target: string; change: string; reading: string }[]; actions: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/outbound", { headers: { "x-admin-token": token } })
+      .then((r) => r.json())
+      .then((j) => (j.error ? setError(j.error) : setReport(j)))
+      .catch(() => setError("読み込めませんでした。"));
+  }, [token]);
+
+  async function analyze() {
+    setBusy(true);
+    setError("");
+    const r = await fetch("/api/admin/outbound", { method: "POST", headers: { "x-admin-token": token } });
+    const j = await r.json();
+    if (r.ok) setAnalysis(j.analysis);
+    else setError(j.error ?? "分析できませんでした。");
+    setBusy(false);
+  }
+
+  const recent = report?.daily.slice(-28) ?? [];
+  const max = Math.max(1, ...recent.map((d) => d.clicks));
+  return (
+    <Card>
+      <h2 className="text-sm font-black">🔎 お店を探す（Google マップへの移動）の記録</h2>
+      <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+        飲み屋街の「お店を探す」で、確認のあと Google マップに移動した回数です。回数と、重複を数えるための短い記号だけを残しています。
+      </p>
+      {error && <p className="mt-2 text-xs text-accent">{error}</p>}
+      {report && (
+        <div className="mt-2 space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-background p-2">
+              <p className="text-[10px] text-ink-soft">今日</p>
+              <p className="text-lg font-black">{report.todayClicks}</p>
+            </div>
+            <div className="rounded-xl bg-background p-2">
+              <p className="text-[10px] text-ink-soft">直近7日の1日平均</p>
+              <p className="text-lg font-black">{report.avg7}</p>
+            </div>
+            <div className="rounded-xl bg-background p-2">
+              <p className="text-[10px] text-ink-soft">その前の4週間</p>
+              <p className="text-lg font-black">
+                {report.avg28}
+                {report.changePct !== null && (
+                  <span className={`ml-1 text-[11px] ${report.changePct >= 0 ? "text-accent" : "text-ink-soft"}`}>
+                    {report.changePct >= 0 ? "+" : ""}
+                    {report.changePct}%
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold">直近28日</p>
+            <div className="mt-1 flex h-16 items-end gap-[2px]">
+              {recent.map((d) => (
+                <div key={d.date} title={`${d.date}：${d.clicks}回`} className="flex-1 rounded-t bg-foreground/70" style={{ height: `${(d.clicks / max) * 100}%`, minHeight: d.clicks ? 2 : 0 }} />
+              ))}
+            </div>
+          </div>
+          <ul className="space-y-1 text-xs leading-relaxed">
+            {report.notes.map((n, i) => (
+              <li key={i}>・{n}</li>
+            ))}
+          </ul>
+          {report.top.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold">直近7日によく押された飲み屋街</p>
+              <ul className="mt-1 text-xs">
+                {report.top.map((t) => (
+                  <li key={t.key}>
+                    {t.areaName}「{t.label}」 {t.last7}回
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {report.newsHints.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold">増減した街の最近のニュース（理由の手がかり）</p>
+              <ul className="mt-1 text-xs">
+                {report.newsHints.map((n, i) => (
+                  <li key={i}>
+                    {n.areaName}　{n.date}［{n.kind}］{n.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <button onClick={analyze} disabled={busy} className="w-full rounded-xl border border-foreground py-2 text-xs font-bold disabled:opacity-40">
+            {busy ? "AIが分析しています…" : "🤖 増減の理由をAIに分析してもらう"}
+          </button>
+          {analysis && (
+            <div className="space-y-2 rounded-xl bg-background p-3 text-xs leading-relaxed">
+              <p className="font-bold">{analysis.summary}</p>
+              {analysis.findings.map((f, i) => (
+                <p key={i}>
+                  <b>{f.target}</b>（{f.change}）：{f.reading}
+                </p>
+              ))}
+              {analysis.actions.length > 0 && <p>見直すとよいこと：{analysis.actions.join("／")}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** みんなの投稿を、都道府県ごと・組み合わせごとにまとめる（全国版のための分析） */
+function PostReportCard({ token }: { token: string }) {
+  const [report, setReport] = useState<PostReport | null>(null);
+  const [analysis, setAnalysis] = useState<{ summary: string; regions: { prefecture: string; reading: string }[]; patterns: string[]; nextSteps: string[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/posts", { headers: { "x-admin-token": token } })
+      .then((r) => r.json())
+      .then((j) => (j.error ? setError(j.error) : setReport(j)))
+      .catch(() => setError("読み込めませんでした。"));
+  }, [token]);
+
+  async function analyze() {
+    setBusy(true);
+    setError("");
+    const r = await fetch("/api/admin/posts", { method: "POST", headers: { "x-admin-token": token } });
+    const j = await r.json();
+    if (r.ok) setAnalysis(j.analysis);
+    else setError(j.error ?? "分析できませんでした。");
+    setBusy(false);
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-black">🗾 全国のみんなの投稿の分析</h2>
+      <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+        人が「気づいた」店の組み合わせ（＝補完関係が強いところ）を、都道府県ごとに数えています。東京以外の投稿は全国版の材料になります。
+      </p>
+      {error && <p className="mt-2 text-xs text-accent">{error}</p>}
+      {report && (
+        <div className="mt-2 space-y-3 text-xs leading-relaxed">
+          <ul>
+            {report.notes.map((n, i) => (
+              <li key={i}>・{n}</li>
+            ))}
+          </ul>
+          <ul className="divide-y divide-line">
+            {report.prefectures.map((p) => (
+              <li key={p.prefecture} className="py-2">
+                <b>
+                  {p.prefecture}　{p.posts}件
+                </b>
+                <span className="text-ink-soft">（直近30日 {p.recent}件・👍{p.reactions}）</span>
+                <br />
+                <span className="text-ink-soft">{p.places.join("、")}</span>
+                {p.pairs.length > 0 && (
+                  <>
+                    <br />
+                    組み合わせ：{p.pairs.map((x) => `${x.pair}（${x.count}）`).join("、")}
+                  </>
+                )}
+                {p.top[0] && (
+                  <>
+                    <br />
+                    よく反応された気づき：{p.top[0].summary}
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+          <button onClick={analyze} disabled={busy} className="w-full rounded-xl border border-foreground py-2 text-xs font-bold disabled:opacity-40">
+            {busy ? "AIが分析しています…" : "🤖 全国の投稿をAIに分析してもらう"}
+          </button>
+          {analysis && (
+            <div className="space-y-2 rounded-xl bg-background p-3">
+              <p className="font-bold">{analysis.summary}</p>
+              {analysis.regions.map((r) => (
+                <p key={r.prefecture}>
+                  <b>{r.prefecture}</b>：{r.reading}
+                </p>
+              ))}
+              {analysis.patterns.length > 0 && <p>地域を問わず効きそうな組み合わせ：{analysis.patterns.join("／")}</p>}
+              {analysis.nextSteps.length > 0 && <p>全国版に向けて次にすること：{analysis.nextSteps.join("／")}</p>}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

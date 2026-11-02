@@ -6,7 +6,7 @@ import MapView, { type MapLine, type MapMarker, type MapZone } from "@/component
 import AskAI, { ASK_ANCHOR, AskAILink } from "@/components/AskAI";
 import PostCard from "@/components/PostCard";
 import { Card, DemoBanner, ErrorNote, Spinner } from "@/components/ui";
-import type { Area } from "@/lib/areas";
+import { getArea, type Area } from "@/lib/areas";
 import type { PublicPost } from "@/lib/posts";
 import type { AreaNewsItem } from "@/lib/news";
 import type { FocusType, Lecture, NightlifeView } from "@/lib/schemas";
@@ -240,7 +240,7 @@ function LectureView({
           </Section>
         )}
 
-        <Details lecture={lecture} active={active} setActive={setActive} night={night} onOpenNight={openNight} />
+        <Details lecture={lecture} areaId={data.area?.id ?? null} active={active} setActive={setActive} night={night} onOpenNight={openNight} />
 
         <Section title="🚶 商圏を体感する歩き方">
           <p className="text-sm leading-relaxed">{lecture.walkRoute}</p>
@@ -455,8 +455,46 @@ function DaytimeBody({ daytime }: { daytime: Lecture["daytime"] }) {
   );
 }
 
-function NightBody({ night, onShowMap }: { night: Night; onShowMap: () => void }) {
+/** Google マップの検索のURL（Maps URLs。APIキー不要） */
+function mapsSearchUrl(placeName: string, district: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${placeName} ${district} 居酒屋 バー`)}`;
+}
+
+/** 外部サイトへ移る前の確認。OK のときだけ回数を記録して開く */
+function ExternalConfirm({ target, onClose }: { target: { url: string; label: string; areaId: string | null } | null; onClose: () => void }) {
+  if (!target) return null;
+  function go() {
+    if (target!.areaId) {
+      const body = JSON.stringify({ kind: "nightlife-maps", areaId: target!.areaId, label: target!.label });
+      // ページを離れても届くように sendBeacon を使う
+      if (!navigator.sendBeacon?.("/api/outbound", new Blob([body], { type: "application/json" }))) {
+        void fetch("/api/outbound", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
+      }
+    }
+    window.open(target!.url, "_blank", "noopener,noreferrer");
+    onClose();
+  }
+  return (
+    <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-3xl bg-card p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="text-lg font-black">外部のサイトに移動します</p>
+        <p className="mt-2 text-sm leading-relaxed">
+          「{target.label}」のお店を、Google マップで探します。このアプリの外のページ（Google マップ）が開きますが、よろしいですか？
+        </p>
+        <button onClick={go} className="mt-4 w-full rounded-xl bg-accent py-3 font-bold text-white">
+          OK（Google マップを開く）
+        </button>
+        <button onClick={onClose} className="mt-2 w-full py-2 text-sm text-ink-soft">
+          やめる
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NightBody({ night, onShowMap, areaId, placeName }: { night: Night; onShowMap: () => void; areaId: string | null; placeName: string }) {
   const n = night.data;
+  const [external, setExternal] = useState<{ url: string; label: string; areaId: string | null } | null>(null);
   if (!n) {
     return (
       <p className="text-xs font-bold text-ink-soft">
@@ -516,11 +554,18 @@ function NightBody({ night, onShowMap }: { night: Night; onShowMap: () => void }
               <p className="mt-1 text-xs">🍶 {d.howToEnjoy}</p>
               {d.fromExits.length > 0 && <p className="mt-1 text-[11px] text-ink-soft">流れてくる出口：{d.fromExits.join("・")}</p>}
               {d.caution && <p className="mt-1 text-[11px] font-bold text-red-700">⚠️ {d.caution}</p>}
+              <button
+                onClick={() => setExternal({ url: mapsSearchUrl(placeName, d.name), label: d.name, areaId })}
+                className="mt-2 w-full rounded-xl border border-foreground bg-card py-2 text-xs font-bold"
+              >
+                🔎 この飲み屋街でお店を探す（Google マップ）
+              </button>
             </li>
           ))}
         </ul>
       </div>
 
+      <ExternalConfirm target={external} onClose={() => setExternal(null)} />
       <p className="rounded-xl bg-accent-soft p-3 text-xs leading-relaxed">
         <b>大人の一晩の回り方：</b>
         {n.hopping}
@@ -538,12 +583,14 @@ function NightBody({ night, onShowMap }: { night: Night; onShowMap: () => void }
 
 function Details({
   lecture,
+  areaId,
   active,
   setActive,
   night,
   onOpenNight,
 }: {
   lecture: Lecture;
+  areaId: string | null;
   active: number | null;
   setActive: (n: number | null) => void;
   night: Night;
@@ -558,7 +605,7 @@ function Details({
       setAdult(localStorage.getItem(ADULT_KEY) === "yes");
     } catch {}
   }, []);
-  const sections: { key: FocusType | "昼の街" | "飲み屋街"; title: string; body: React.ReactNode; show: boolean }[] = [
+  const sections: { key: FocusType | "昼の街" | "飲み屋街" | "土地と再開発"; title: string; body: React.ReactNode; show: boolean }[] = [
     {
       key: "支える人",
       title: "街を支える人とニーズ",
@@ -688,12 +735,18 @@ function Details({
     },
   ];
   sections.push(
+    {
+      key: "土地と再開発",
+      title: "🏗️ 土地と再開発（街を動かす力）",
+      show: !!lecture.land && lecture.land.pace !== "わからない",
+      body: lecture.land && <LandBody land={lecture.land} />,
+    },
     { key: "昼の街", title: "☀️ 昼の街（朝・ランチ・午後・休日）", show: !!lecture.daytime, body: lecture.daytime && <DaytimeBody daytime={lecture.daytime} /> },
     {
       key: "飲み屋街",
       title: "🍺 飲み屋街（出口 → 人の流れ → 飲み屋街）",
       show: true,
-      body: <NightBody night={night} onShowMap={onOpenNight} />,
+      body: <NightBody night={night} onShowMap={onOpenNight} areaId={areaId} placeName={lecture.placeName} />,
     },
   );
   const ordered = [...sections.filter((x) => x.key === lecture.focus), ...sections.filter((x) => x.key !== lecture.focus)];
@@ -759,6 +812,48 @@ function Details({
             </details>
           ))}
       </div>
+    </div>
+  );
+}
+
+const PACE_NOTE: Record<string, string> = {
+  "速い・大規模": "持ち主が少なく、一度に大きく変わりやすい",
+  "ゆっくり・段階的": "持ち主が多く、合意をまとめながら少しずつ変わる",
+  "場所による": "駅の側や通りによって、変わる速さが違う",
+};
+
+/** 土地と再開発：誰が土地を持ち、それが商圏の変わる速さと大きさにどう効くか */
+function LandBody({ land }: { land: NonNullable<Lecture["land"]> }) {
+  const other = land.compare.areaId ? getArea(land.compare.areaId) : undefined;
+  return (
+    <div className="space-y-2.5">
+      <p className="text-sm leading-relaxed">{land.summary}</p>
+      <p className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-bold text-white">商圏の変わる速さ：{land.pace}</span>
+        {PACE_NOTE[land.pace] && <span className="text-[11px] text-ink-soft">{PACE_NOTE[land.pace]}</span>}
+      </p>
+      {land.holders.length > 0 && (
+        <ul className="space-y-2">
+          {land.holders.map((h, i) => (
+            <li key={i} className="rounded-xl bg-background p-2.5 text-sm leading-relaxed">
+              <b>{h.who}</b>
+              <span className="text-xs text-ink-soft">（{h.where}）</span>
+              <br />
+              <span className="text-xs">{h.effect}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {land.compare.text && (
+        <p className="rounded-xl border border-line p-2.5 text-xs leading-relaxed">
+          <b>🔁 {other ? <Link href={`/learn/${other.id}`} className="text-accent underline">{other.name}</Link> : "ほかの街"}と比べると</b>
+          <br />
+          {land.compare.text}
+        </p>
+      )}
+      <p className="text-[10px] leading-relaxed text-ink-soft">
+        自治体の都市計画やニュースなど、公開されている情報から整理したものです。土地の権利関係や計画は変わることがあります。
+      </p>
     </div>
   );
 }

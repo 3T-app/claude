@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { Indicator, ReactionType } from "./constants";
+import type { Indicator, InsightRelation, ReactionType } from "./constants";
 
 // 試作版はJSONファイル1つをDB代わりにする。本番ではDBに置き換える前提。
 
@@ -17,13 +17,27 @@ export interface PostInsight {
   mechanism: string;
   tags: string[];
   quality: number;
+  /** 店と店のどんな関係の気づきか（「気づいた」＝その組み合わせが客を呼んでいる証拠） */
+  relation?: InsightRelation;
+  /** 関係している店・施設の種類（例：丼屋、ジェラート店）。店名ではなく種類 */
+  pair?: string[];
+}
+
+/** 東京の48の街以外の投稿の場所（全国どこでも） */
+export interface PostPlace {
+  name: string;
+  prefecture: string;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface Post {
   id: string;
   uid: string;
   nickname: string;
+  /** 東京の48の街のid。それ以外の場所なら空文字で、place に場所が入る */
   areaId: string;
+  place?: PostPlace;
   comment: string;
   image: string | null;
   createdAt: string;
@@ -82,6 +96,8 @@ interface DB {
   questions: Record<string, StoredQuestion>;
   /** 立地調査の結果（支払いの画面から戻ったときに表示し直すため） */
   diagnoses: Record<string, { uid: string; input: { name: string; address: string; genre: string }; result: unknown; createdAt: string }>;
+  /** 外部リンク（飲み屋街の「お店を探す」など）の踏み込み数。「日付 → 種類|街|飲み屋街」ごと */
+  outbound: Record<string, Record<string, { clicks: number; users: string[] }>>;
   /** 外部APIの結果のキャッシュ（YouTube・ホットペッパー・e-Stat） */
   sourceCache: Record<string, { data: unknown; fetchedAt: string }>;
   /** /admin で編集したときだけ入る。空ならファイル（data/teachings.md, data/area-notes/*.md）を使う */
@@ -90,7 +106,7 @@ interface DB {
   areaNotes: Record<string, string>;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, exerciseUsage: {}, questions: {}, diagnoses: {}, sourceCache: {}, teachings: "", areaNotes: {} };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, exerciseUsage: {}, questions: {}, diagnoses: {}, outbound: {}, sourceCache: {}, teachings: "", areaNotes: {} };
 
 let queue: Promise<unknown> = Promise.resolve();
 

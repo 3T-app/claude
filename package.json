@@ -10,7 +10,9 @@
     "check:analyses": "jiti scripts/check-analyses.ts",
     "check:news": "jiti scripts/check-news.ts",
     "news:targets": "jiti scripts/news-targets.ts",
-    "phone": "node scripts/phone.mjs"
+    "phone": "node scripts/phone.mjs",
+    "report:clicks": "jiti scripts/report-clicks.ts",
+    "report:posts": "jiti scripts/report-posts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

@@ -1,7 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { DATA_DIR, readDB, reactionCount, type Indicator, type Post } from "./store";
-import { getArea } from "./areas";
+import { distanceM } from "./areas";
+import { postPlaceName } from "./posts";
 
 // 「育成」のしくみ：モデル自体は再学習せず、
 //   1) 運営が書いた教え（teachings）
@@ -33,12 +34,29 @@ function score(p: Post): number {
   return (p.insight?.quality ?? 1) + reactionCount(p) * 0.5;
 }
 
-export async function findInsights(opts: { areaIds?: string[]; indicator?: Indicator; limit?: number }) {
+/**
+ * 投稿の気づきを探す。areaIds（東京の48の街）か near（全国どこでも、位置から半径）で場所を絞り、
+ * keywords（業態の言葉など）や relation（補完の関係だけ）で中身を絞る
+ */
+export async function findInsights(opts: {
+  areaIds?: string[];
+  near?: { lat: number; lng: number; radiusM: number };
+  indicator?: Indicator;
+  keywords?: string[];
+  complementOnly?: boolean;
+  limit?: number;
+}) {
   const db = await readDB();
+  const inArea = (p: Post) => !!opts.areaIds?.includes(p.areaId);
+  const isNear = (p: Post) =>
+    !!opts.near && p.place?.lat != null && p.place.lng != null && distanceM(opts.near.lat, opts.near.lng, p.place.lat, p.place.lng) <= opts.near.radiusM;
+  const text = (p: Post) => [p.comment, p.insight!.summary, p.insight!.mechanism, ...(p.insight!.tags ?? []), ...(p.insight!.pair ?? [])].join(" ");
   return db.posts
     .filter((p) => p.insight)
-    .filter((p) => !opts.areaIds || opts.areaIds.includes(p.areaId))
+    .filter((p) => (!opts.areaIds && !opts.near) || inArea(p) || isNear(p))
     .filter((p) => !opts.indicator || p.insight!.indicator === opts.indicator)
+    .filter((p) => !opts.complementOnly || p.insight!.relation?.startsWith("補完"))
+    .filter((p) => !opts.keywords?.length || opts.keywords.some((k) => text(p).includes(k)))
     .sort((a, b) => score(b) - score(a))
     .slice(0, opts.limit ?? 12);
 }
@@ -47,9 +65,9 @@ export function formatInsights(posts: Post[]): string {
   if (posts.length === 0) return "（まだ投稿はありません）";
   return posts
     .map((p) => {
-      const area = getArea(p.areaId)?.name ?? p.areaId;
       const i = p.insight!;
-      return `- [${area}｜${i.indicator}｜リアクション${reactionCount(p)}] ${i.summary}（なぜ効くか：${i.mechanism}）`;
+      const rel = i.relation && i.relation !== "その他" ? `｜${i.relation}${i.pair?.length ? `：${i.pair.join("×")}` : ""}` : "";
+      return `- [${postPlaceName(p)}｜${i.indicator}${rel}｜リアクション${reactionCount(p)}] ${i.summary}（なぜ効くか：${i.mechanism}）`;
     })
     .join("\n");
 }

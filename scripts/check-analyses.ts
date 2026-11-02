@@ -12,6 +12,7 @@ const GENERIC_TITLES = ["歴史", "町の歴史", "街の歴史", "商圏の割�
   const dir = path.join(process.cwd(), "data", "analyses");
   let problems = 0;
   const done: string[] = [];
+  const withLand: string[] = [];
   for (const area of AREAS) {
     let raw: string;
     try {
@@ -60,6 +61,14 @@ const GENERIC_TITLES = ["歴史", "町の歴史", "街の歴史", "商圏の割�
         if (dist > 2000) issues.push(`${d.name} が中心から ${Math.round(dist)}m`);
       }
     }
+    // 土地と再開発（ある街だけ）：持ち主と、比べる街
+    if (a.land) {
+      if (a.land.pace !== "わからない" && a.land.holders.length === 0) issues.push("土地と再開発の持ち主がない");
+      if (a.land.holders.length > 4) issues.push(`土地の持ち主 ${a.land.holders.length}`);
+      if (a.land.compare.areaId && !AREAS.some((x) => x.id === a.land!.compare.areaId)) issues.push(`比べる街「${a.land.compare.areaId}」がない`);
+      if (a.land.compare.areaId === area.id) issues.push("比べる街が自分自身");
+      withLand.push(area.id);
+    }
     if (issues.length) {
       problems++;
       console.log(`NG ${area.id}: ${issues.join(" / ")}`);
@@ -67,6 +76,7 @@ const GENERIC_TITLES = ["歴史", "町の歴史", "街の歴史", "商圏の割�
   }
   const missing = AREAS.filter((a) => !done.includes(a.id)).map((a) => a.id);
   console.log(`OK ${done.length}/${AREAS.length}`);
+  console.log(`土地と再開発あり：${withLand.length}エリア`);
   if (missing.length) console.log(`未作成・要修正：${missing.join(", ")}`);
   // 「つまり〇〇は、昼は〜」の型は、昼夜で語るのが合う街だけに使う（多すぎたら警告）
   if (templated.length > 6) {

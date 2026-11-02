@@ -79,6 +79,71 @@ export async function youtubeTrends(genre: string): Promise<YouTubeVideo[]> {
   });
 }
 
+// 海外の流行の先取り：韓国・台湾・アメリカで、その業態で直近30日に再生の多い動画（その国の言葉で検索）
+export const GLOBAL_REGIONS = [
+  { code: "KR", name: "韓国", lang: "ko" },
+  { code: "TW", name: "台湾", lang: "zh-Hant" },
+  { code: "US", name: "アメリカ", lang: "en" },
+] as const;
+
+const GLOBAL_QUERIES: Record<string, Record<(typeof GLOBAL_REGIONS)[number]["code"], string>> = {
+  "カフェ・喫茶": { KR: "카페 신상", TW: "咖啡廳 新開", US: "viral cafe" },
+  "スイーツ・ベーカリー": { KR: "디저트 신상 유행", TW: "甜點 爆紅", US: "viral dessert" },
+  "ラーメン・つけ麺": { KR: "라멘 맛집 신상", TW: "拉麵 新開", US: "ramen trend" },
+  "居酒屋・バー": { KR: "이자카야 술집 신상", TW: "居酒屋 新開", US: "bar trend" },
+  "定食・食堂": { KR: "백반 맛집", TW: "定食 便當 爆紅", US: "comfort food trend" },
+  "焼肉・ホルモン": { KR: "고기집 신상 맛집", TW: "燒肉 新開", US: "korean bbq trend" },
+  "寿司・和食": { KR: "오마카세 스시", TW: "壽司 新開", US: "sushi trend" },
+  "イタリアン・フレンチ": { KR: "파스타 신상 맛집", TW: "義大利麵 爆紅", US: "pasta trend" },
+  "アジア・エスニック": { KR: "태국 음식 맛집", TW: "東南亞料理 爆紅", US: "viral street food" },
+  "テイクアウト・総菜": { KR: "길거리 음식 유행", TW: "夜市 小吃 爆紅", US: "viral street food" },
+  その他: { KR: "음식 유행", TW: "美食 爆紅", US: "viral food" },
+};
+
+export interface RegionVideos {
+  region: string;
+  query: string;
+  videos: YouTubeVideo[];
+}
+
+async function topVideos(params: Record<string, string>, limit: number): Promise<YouTubeVideo[]> {
+  const search = await get("search", { part: "snippet", type: "video", order: "viewCount", publishedAfter: new Date(Date.now() - 30 * DAY).toISOString(), ...params });
+  const ids: string[] = (search.items ?? []).map((i: { id: { videoId: string } }) => i.id.videoId).filter(Boolean);
+  if (ids.length === 0) return [];
+  const videos = await get("videos", { part: "snippet,statistics", id: ids.join(",") });
+  return (videos.items ?? [])
+    .map((v: { id: string; snippet: { title: string; channelTitle: string; publishedAt: string }; statistics: { viewCount?: string } }) => ({
+      title: v.snippet.title,
+      channel: v.snippet.channelTitle,
+      publishedAt: v.snippet.publishedAt,
+      views: Number(v.statistics.viewCount ?? 0),
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+    }))
+    .sort((a: YouTubeVideo, b: YouTubeVideo) => b.views - a.views)
+    .slice(0, limit);
+}
+
+/** 韓国・台湾・アメリカの、この業態の流行動画。無料枠を使いすぎないよう3日キャッシュ（検索1回100ユニット×3か国） */
+export async function youtubeGlobalTrends(genre: string): Promise<RegionVideos[]> {
+  if (!youtubeEnabled()) return [];
+  const queries = GLOBAL_QUERIES[genre] ?? GLOBAL_QUERIES["その他"];
+  return cached(`youtube-global:${genre}`, 3 * DAY, async () => {
+    const results = await Promise.all(
+      GLOBAL_REGIONS.map(async (r) => ({
+        region: r.name,
+        query: queries[r.code],
+        videos: await topVideos({ q: queries[r.code], regionCode: r.code, relevanceLanguage: r.lang, maxResults: "8" }, 4).catch(() => []),
+      })),
+    );
+    return results.filter((r) => r.videos.length > 0);
+  });
+}
+
+export function formatYouTubeGlobal(regions: RegionVideos[]): string {
+  if (regions.length === 0) return "（海外のYouTubeのデータなし）";
+  return regions.map((r) => `【${r.region}（検索：${r.query}）】\n${formatYouTube(r.videos)}`).join("\n");
+}
+
 export function formatYouTube(videos: YouTubeVideo[]): string {
   if (videos.length === 0) return "（YouTubeのデータなし）";
   return videos

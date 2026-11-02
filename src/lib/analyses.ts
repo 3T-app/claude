@@ -68,5 +68,10 @@ export function formatAnalysis(a: StoredAnalysis): string {
     `歴史と名残：${a.history.map((h) => `${h.period} ${h.event}（名残：${h.remnant}）`).join("／")}`,
     `新しい勢力：${a.newForces.map((n) => `${n.period} ${n.event}`).join("／")}`,
     `昼の街：${a.daytime.summary} ${a.daytime.slots.map((s) => `【${s.time}】${s.who}が${s.where}に`).join(" ")}`,
-  ].join("\n");
+    a.land
+      ? `土地と再開発（${a.land.pace}）：${a.land.summary} ${a.land.holders.map((h) => `${h.who}［${h.where}］${h.effect}`).join("／")}${a.land.compare.text ? ` 比べると：${a.land.compare.text}` : ""}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
