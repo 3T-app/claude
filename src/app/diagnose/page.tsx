@@ -278,6 +278,8 @@ function Report({ result, name }: { result: SavedDiagnosis; name: string }) {
 
         {result.footfall && <FootfallCard f={result.footfall} />}
 
+        {result.places && <PlacesCard p={result.places} />}
+
         <LocalDataCard result={result} />
 
         {(result.community?.length ?? 0) > 0 && (
@@ -466,6 +468,7 @@ function LocalDataCard({ result }: { result: DiagnosisResult }) {
 function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend"]; genre: string; trendFit: string }) {
   const { web, youtube, notes } = bundle;
   const youtubeGlobal = bundle.youtubeGlobal ?? [];
+  const korea = bundle.korea ?? [];
   return (
     <Card>
       <h3 className="text-sm font-black text-accent">📈 {genre}で今はやっているもの</h3>
@@ -534,6 +537,26 @@ function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend
                   {v.title}
                 </a>
                 <span className="text-ink-soft">　{Math.round(v.views / 1000).toLocaleString("ja-JP")}千回</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {korea.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-bold">🇰🇷 韓国の検索の伸び（Naver・直近4週とその前の12週）</summary>
+          <ul className="mt-1 space-y-1">
+            {korea.map((t) => (
+              <li key={t.name} className="text-[11px] leading-relaxed">
+                <b>{t.name}</b>
+                <span className="text-ink-soft">（{t.keywords.join("・")}）</span>
+                {t.changePct !== null && (
+                  <span className={`ml-1 font-bold ${t.changePct >= 0 ? "text-accent" : "text-ink-soft"}`}>
+                    {t.changePct >= 0 ? "+" : ""}
+                    {t.changePct}%
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -636,6 +659,37 @@ function FootfallCard({ f }: { f: NonNullable<DiagnosisResult["footfall"]> }) {
         {f.source === "osm" ? "出口と駅の位置：© OpenStreetMap contributors" : f.source === "analysis" ? "出口の位置：飲み屋街の分析（方角からのおおよその位置）" : ""}
         　徒歩の分数は、直線距離×1.25を分速80mで割った目安です。
       </p>
+    </Card>
+  );
+}
+
+/** 周りの同じ業態の店の評価・口コミの数・価格帯（Google マップ） */
+function PlacesCard({ p }: { p: NonNullable<DiagnosisResult["places"]> }) {
+  return (
+    <Card>
+      <h3 className="text-sm font-black text-accent">⭐ 周りの同じ業態の店の評価（Google マップ）</h3>
+      {p.shops.length === 0 ? (
+        <p className="mt-1 text-xs text-ink-soft">半径{p.radiusM}m前後に「{p.query}」の店は見つかりませんでした。</p>
+      ) : (
+        <>
+          <p className="mt-1 text-xs leading-relaxed">
+            半径{p.radiusM}m前後の「{p.query}」の店 <b>{p.shops.length}軒</b>
+            ／口コミで重みをつけた平均 <b>★{p.avgRating ?? "なし"}</b>／口コミの数の中央値 <b>{p.medianReviews}件</b>
+            {Object.keys(p.prices).length > 0 && `／価格帯 ${Object.entries(p.prices).map(([k, n]) => `${k}${n}軒`).join("・")}`}
+          </p>
+          <ul className="mt-2 space-y-1">
+            {p.shops.slice(0, 8).map((s, i) => (
+              <li key={i} className="text-[11px] leading-relaxed">
+                {s.name}
+                <span className="text-ink-soft">
+                  　約{s.distanceM}m・★{s.rating ?? "なし"}・口コミ{s.reviews}件{s.price ? `・${s.price}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="mt-2 text-[10px] text-ink-soft">データ：Google マップ（その場で取得し、保存していません）</p>
     </Card>
   );
 }

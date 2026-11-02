@@ -28,6 +28,8 @@ import { ALL_GENRES, GENRE_SLUGS } from "./constants";
 import { cityStats, formatCityStats, type CityStats } from "./sources/estat";
 import { competition, composition, formatCompetition, formatComposition, type Competition } from "./sources/hotpepper";
 import { formatYouTube, formatYouTubeGlobal, youtubeGlobalTrends, youtubeTrends, type RegionVideos, type YouTubeVideo } from "./sources/youtube";
+import { formatKoreaTrends, koreaTrends, type KoreaTrend } from "./sources/naver";
+import { formatPlaces, ratedShopsAround, type PlacesSummary } from "./sources/places";
 import { cached, DATA_DIR, INDICATORS, reactionCount, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -427,6 +429,8 @@ export interface TrendBundle {
   youtube: YouTubeVideo[];
   /** 韓国・台湾・アメリカの、この業態の流行動画（海外の先取り） */
   youtubeGlobal?: RegionVideos[];
+  /** 韓国の検索の伸び（Naver DataLab。キーがあるとき） */
+  korea?: KoreaTrend[];
   notes: TrendNote[];
   buzz: BuzzItem[];
   global: GlobalItem[];
@@ -434,15 +438,16 @@ export interface TrendBundle {
 
 /** 流行の材料をまとめて集める：手入れのSNSメモ ＋ ニュース巡回 ＋ 海外の話題 ＋ YouTube ＋ Web巡回 */
 export async function getTrendBundle(genre: string): Promise<TrendBundle> {
-  const [web, youtube, youtubeGlobal, notes, buzz, global] = await Promise.all([
+  const [web, youtube, youtubeGlobal, korea, notes, buzz, global] = await Promise.all([
     getTrend(genre),
     safe("youtube", youtubeTrends(genre)),
     safe("youtube", youtubeGlobalTrends(genre)),
+    safe("naver", koreaTrends(genre)),
     recentNotes(genre),
     readBuzz(genre),
     readGlobal(genre),
   ]);
-  return { web, youtube: youtube ?? [], youtubeGlobal: youtubeGlobal ?? [], notes, buzz, global };
+  return { web, youtube: youtube ?? [], youtubeGlobal: youtubeGlobal ?? [], korea: korea ?? [], notes, buzz, global };
 }
 
 // ─────────────────────────────────────────────
@@ -460,6 +465,8 @@ export interface DiagnosisResult {
   areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
   relationLines: LatLng[][];
   areaNews: AreaNewsItem[];
+  /** 周りの同じ業態の店の評価・口コミの数・価格帯（Google マップ。キーがあるとき。保存しない） */
+  places?: PlacesSummary | null;
   /** 集客基盤の集計：店の住所から駅の出口までの距離と、出口から先の人の流れ */
   footfall?: FootfallBase | null;
   /** みんなの投稿（全国）で見つかった、この業態がかかわる補完の組み合わせと、店の近くの気づき */
@@ -511,7 +518,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
 
   // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
   const homeArea = nearby[0] && nearby[0].distance < 2000 ? nearby[0].area : null;
-  const [trend, comp, city, pois, lectureCache, areaNews, footfall] = await Promise.all([
+  const [trend, comp, city, pois, lectureCache, areaNews, footfall, places] = await Promise.all([
     getTrendBundle(input.genre),
     point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
     safe("estat", cityStats(point?.label, input.address)),
@@ -519,6 +526,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     homeArea ? cachedLecture(homeArea.id) : Promise.resolve(null),
     homeArea ? readAreaNews(homeArea.id, 6) : Promise.resolve([]),
     point ? safe("footfall", footfallBase(point)) : Promise.resolve(null),
+    point && !point.approximate ? safe("places", ratedShopsAround(point.lat, point.lng, input.genre)) : Promise.resolve(null),
   ]);
   // 近くの街の講義がまだなければ、次回のために裏で作っておく（待たない）
   if (homeArea && !lectureCache && !isDemoMode()) void getLecture(homeArea.id).catch(() => undefined);
@@ -538,6 +546,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     return {
       diagnosis: demo,
       footfall,
+      places,
       point,
       nearby: nearbyInfo,
       trend,
@@ -593,12 +602,16 @@ export async function diagnose(input: { name: string; address: string; genre: st
     homeArea ? `<運営の現地調査メモ（${homeArea.name}）>\n${(await getAreaNote(homeArea.id)) || "（なし）"}\n</運営の現地調査メモ>` : "",
     `<店から半径400m以内の店・施設（OpenStreetMap）>\n${pois && point ? formatPois(pois, point, 200) : "（取得できませんでした）"}\n</店から半径400m以内の店・施設>`,
     `<周辺の飲食店（ホットペッパー）>\n${formatCompetition(comp, input.genre)}\n</周辺の飲食店>`,
+    places ? `<周りの同じ業態の店の評価・口コミの数・価格帯（Google マップ）>\n${formatPlaces(places)}\n</Google マップ>` : "",
     `<区市の人口・世帯（e-Stat）>\n${formatCityStats(city)}\n</区市の人口・世帯>`,
     `<${input.genre}の流行：運営がX・Instagramなどから手で集めたメモ（最優先で参考にする）>\n${formatNotes(trend.notes)}\n</流行メモ>`,
     `<${input.genre}の流行：ニュースで話題の食べ物・お店（毎日の巡回）>\n${formatBuzz(trend.buzz)}\n</ニュースで話題>`,
     `<${input.genre}の流行：海外で話題のもの・日本に上陸したもの・訪日客が東京で探しているもの（毎日の巡回）>\n${formatGlobal(trend.global)}\n</海外の話題>`,
     areaNews.length ? `<${homeArea!.name}の最近の街のニュース（開業・閉店・再開発など）>\n${formatAreaNews(areaNews)}\n</最近の街のニュース>` : "",
     `<${input.genre}の流行：YouTubeで直近30日に再生が多い動画>\n${formatYouTube(trend.youtube)}\n</YouTube>`,
+    trend.korea?.length
+      ? `<${input.genre}の海外の流行：韓国の検索の伸び（Naver DataLab。直近4週とその前の12週の比べ）>\n${formatKoreaTrends(trend.korea)}\n</韓国の検索>`
+      : "",
     trend.youtubeGlobal?.length
       ? `<${input.genre}の海外の流行：韓国・台湾・アメリカのYouTubeで直近30日に再生が多い動画（日本に来る前の先取り）>\n${formatYouTubeGlobal(trend.youtubeGlobal)}\n</海外のYouTube>`
       : "",
@@ -613,6 +626,10 @@ export async function diagnose(input: { name: string; address: string; genre: st
     "trendFit とバズるメニューは、流行メモ・ニュース・海外の話題・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
     "海外の話題は、日本にまだ広まっていない「先取り」のメニュー案や、訪日客を呼び込む工夫として使ってください。",
     "最近の街のニュース（近くの開業・閉店・再開発）は、競合性と接続性の評価に反映してください。",
+    places
+      ? "Google マップの評価・口コミの数は、競合性（評価の高い同業がどれだけ近くに集まっているか、口コミの多い店に客を取られていないか）と、価格帯は客層の多様性（街の客の財布に合っているか）の根拠に使い、数字を reason に引用してください。"
+      : "",
+    trend.korea?.length ? "韓国の検索で伸びている言葉は、日本に来る前の先取りのメニュー案として使ってください。" : "",
     "この店について知らない場合は、店名と業態から一般的な店として評価し、知っているふりをしないでください。",
     "運営の「立地調査での使いかた」に沿って、まず zoneFit（どの商圏の中・端・外か）を決め、次に relations（周りの実在の店との補完・集積・価格競争）を書き、その読みを5つの軸の点数の根拠にしてください。",
     "relations の poiIds には、店から半径400m以内の一覧にある id だけを使ってください（作らない）。",
@@ -651,6 +668,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     relationLines: point ? relationLines : [],
     areaNews,
     footfall,
+    places,
     community,
     demo: false,
   };

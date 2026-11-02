@@ -15,7 +15,7 @@ interface AdminData {
   stats: { posts: number; lectures: number };
   notes: TrendNote[];
   envProblem: string | null;
-  sources: { claude: boolean; stripe: boolean; youtube: boolean; hotpepper: boolean; estat: boolean };
+  sources: { claude: boolean; stripe: boolean; youtube: boolean; hotpepper: boolean; estat: boolean; places: boolean; naver: boolean };
   model: string;
   demo: boolean;
 }
@@ -145,6 +145,8 @@ const SOURCE_NAMES = {
   youtube: "YouTube",
   hotpepper: "ホットペッパー",
   estat: "e-Stat",
+  places: "Google マップ（周りの店の評価・口コミ・価格帯）",
+  naver: "Naver（韓国の検索トレンド）",
 } as const;
 
 /** 毎日の流行メモ。スマホでXやInstagramを見ながら、気になったものを1件ずつ入れる */
