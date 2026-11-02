@@ -22,9 +22,9 @@ export async function POST(req: Request) {
     const id = randomUUID();
     const uid = await getUid();
     await updateDB((d) => {
-      // Google マップのデータ（評価・口コミ数）は規約上保存しないので、保存する結果からは外す
+      // Google マップ・Tripadvisor のデータ（評価・口コミ数）は規約上保存しないので、保存する結果からは外す
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { places, ...keep } = result;
+      const { places, tripadvisor, ...keep } = result;
       d.diagnoses[id] = { uid, input, result: keep, createdAt: new Date().toISOString() };
       const old = Object.entries(d.diagnoses).sort((a, b) => b[1].createdAt.localeCompare(a[1].createdAt));
       for (const [k] of old.slice(KEEP_DIAGNOSES)) delete d.diagnoses[k];

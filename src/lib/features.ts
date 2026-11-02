@@ -30,6 +30,7 @@ import { competition, composition, formatCompetition, formatComposition, type Co
 import { formatYouTube, formatYouTubeGlobal, youtubeGlobalTrends, youtubeTrends, type RegionVideos, type YouTubeVideo } from "./sources/youtube";
 import { formatKoreaTrends, koreaTrends, type KoreaTrend } from "./sources/naver";
 import { formatPlaces, ratedShopsAround, type PlacesSummary } from "./sources/places";
+import { tripadvisorAround, type TripadvisorSummary } from "./sources/tripadvisor";
 import { cached, DATA_DIR, INDICATORS, reactionCount, readDB, updateDB, type PostInsight, type TrendCache, type TrendNote } from "./store";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -465,6 +466,8 @@ export interface DiagnosisResult {
   areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
   relationLines: LatLng[][];
   areaNews: AreaNewsItem[];
+  /** 周りのレストランの評価・口コミの数（Tripadvisor。キーがあるとき。保存せず、AIにも渡さず、画面に出すだけ） */
+  tripadvisor?: TripadvisorSummary | null;
   /** 周りの同じ業態の店の評価・口コミの数・価格帯（Google マップ。キーがあるとき。保存しない） */
   places?: PlacesSummary | null;
   /** 集客基盤の集計：店の住所から駅の出口までの距離と、出口から先の人の流れ */
@@ -518,7 +521,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
 
   // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
   const homeArea = nearby[0] && nearby[0].distance < 2000 ? nearby[0].area : null;
-  const [trend, comp, city, pois, lectureCache, areaNews, footfall, places] = await Promise.all([
+  const [trend, comp, city, pois, lectureCache, areaNews, footfall, places, tripadvisor] = await Promise.all([
     getTrendBundle(input.genre),
     point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
     safe("estat", cityStats(point?.label, input.address)),
@@ -527,6 +530,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     homeArea ? readAreaNews(homeArea.id, 6) : Promise.resolve([]),
     point ? safe("footfall", footfallBase(point)) : Promise.resolve(null),
     point && !point.approximate ? safe("places", ratedShopsAround(point.lat, point.lng, input.genre)) : Promise.resolve(null),
+    point && !point.approximate ? safe("tripadvisor", tripadvisorAround(point.lat, point.lng)) : Promise.resolve(null),
   ]);
   // 近くの街の講義がまだなければ、次回のために裏で作っておく（待たない）
   if (homeArea && !lectureCache && !isDemoMode()) void getLecture(homeArea.id).catch(() => undefined);
@@ -547,6 +551,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
       diagnosis: demo,
       footfall,
       places,
+      tripadvisor,
       point,
       nearby: nearbyInfo,
       trend,
@@ -669,6 +674,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     areaNews,
     footfall,
     places,
+    tripadvisor,
     community,
     demo: false,
   };

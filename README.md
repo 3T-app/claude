@@ -111,7 +111,10 @@ APIキーを `.env.local` に入れると、講義と立地調査のたびに自
 | **Google Places API（New）**（`GOOGLE_PLACES_API_KEY`） | 食べログの代わり。立地調査で、店のまわり500m前後の同じ業態の店の評価（★）・口コミの数・価格帯を出し、競合性・客層の多様性の根拠にする | 保存しない（規約に沿って、その場で取得） |
 | **Naver DataLab 検索語トレンド**（`NCP_APIGW_API_KEY_ID`・`NCP_APIGW_API_KEY`、または以前の `NAVER_CLIENT_ID`・`NAVER_CLIENT_SECRET`） | 韓国での検索の伸び（直近4週とその前の12週）を、日本に来る前の先取りに使う。見る言葉は `data/global-watch.json` | 3日 |
 
-- 食べログには公式の公開APIがなく、データを自動で取ることは利用規約で認められていないため、評価・口コミは Google マップのデータを使います
+| **Tripadvisor Content API**（`TRIPADVISOR_API_KEY`） | 立地調査で、店のまわり500mのレストランの評価・口コミの数・ランキング（観光客・訪日客に強い）を表示する。1回の立地調査で最大5回（近くの検索1回＋近い店の詳細4回）。月の上限（`TRIPADVISOR_MONTHLY_LIMIT`、既定900回）で止まり、無料の範囲を超えない | 保存しない |
+
+- 食べログには公式の公開APIがなく、データを自動で取ることは利用規約で認められていないため、評価・口コミは Google マップと Tripadvisor のデータを使います
+- Tripadvisor のデータは規約に沿って、保存せず（場所のID以外は保存禁止）、評価の画像とリンク・表示をつけて画面に出すだけにしています。AIでの利用は別の契約が必要とされているため、AIの分析には渡しません。古い Content API から新しい Terra API への切り替えが案内されているので、呼び出し先が変わったときは `TRIPADVISOR_API_BASE` で変えられます
 - Google Places API はお支払い情報の登録が必要です（月ごとの無料枠あり）。Google Cloud の「予算とアラート」で上限を決めておくと安心です
 - Naver は2026年から新しい NAVER API HUB（NAVER Cloud Platform）でキーを発行します。呼び出し先が変わったときは `NAVER_DATALAB_URL` で変えられます
 - ホットペッパーのデータを表示する画面には、規約に沿ってクレジットを出しています

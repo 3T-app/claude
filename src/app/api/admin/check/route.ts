@@ -7,6 +7,7 @@ import { estatEnabled, testEstat } from "@/lib/sources/estat";
 import { hotpepperEnabled, testHotPepper } from "@/lib/sources/hotpepper";
 import { naverEnabled, naverKeyNames, testNaver } from "@/lib/sources/naver";
 import { placesEnabled, testPlaces } from "@/lib/sources/places";
+import { testTripadvisor, tripadvisorEnabled } from "@/lib/sources/tripadvisor";
 import { testYouTube, youtubeEnabled } from "@/lib/sources/youtube";
 
 export const maxDuration = 60;
@@ -27,7 +28,7 @@ async function run(envName: string, enabled: boolean, test: () => Promise<string
 export async function POST(req: Request) {
   if (!adminAuthorized(req)) return adminDenied();
   const [id, secret] = naverKeyNames();
-  const [claude, stripe, youtube, hotpepper, estat, places, naver] = await Promise.all([
+  const [claude, stripe, youtube, hotpepper, estat, places, naver, tripadvisor] = await Promise.all([
     run("ANTHROPIC_API_KEY", !!process.env.ANTHROPIC_API_KEY, testClaude),
     run("STRIPE_SECRET_KEY", !!process.env.STRIPE_SECRET_KEY, testStripe),
     run("YOUTUBE_API_KEY", youtubeEnabled(), testYouTube),
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
       if (problem) throw new Error(problem);
       return testNaver();
     }),
+    run("TRIPADVISOR_API_KEY", tripadvisorEnabled(), testTripadvisor),
   ]);
-  return NextResponse.json({ claude, stripe, youtube, hotpepper, estat, places, naver });
+  return NextResponse.json({ claude, stripe, youtube, hotpepper, estat, places, naver, tripadvisor });
 }

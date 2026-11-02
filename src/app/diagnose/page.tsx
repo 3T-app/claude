@@ -280,6 +280,8 @@ function Report({ result, name }: { result: SavedDiagnosis; name: string }) {
 
         {result.places && <PlacesCard p={result.places} />}
 
+        {result.tripadvisor && <TripadvisorCard t={result.tripadvisor} />}
+
         <LocalDataCard result={result} />
 
         {(result.community?.length ?? 0) > 0 && (
@@ -690,6 +692,57 @@ function PlacesCard({ p }: { p: NonNullable<DiagnosisResult["places"]> }) {
         </>
       )}
       <p className="mt-2 text-[10px] text-ink-soft">データ：Google マップ（その場で取得し、保存していません）</p>
+    </Card>
+  );
+}
+
+/** 周りのレストランの評価・口コミの数（Tripadvisor）。規約に沿って、評価の画像とリンク・表示をつける */
+function TripadvisorCard({ t }: { t: NonNullable<DiagnosisResult["tripadvisor"]> }) {
+  return (
+    <Card>
+      <h3 className="text-sm font-black text-accent">🦉 周りのレストランの評価（Tripadvisor）</h3>
+      {t.limited ? (
+        <p className="mt-1 text-xs text-ink-soft">今月の無料の範囲（{t.usage.limit}回）を使い切ったため、来月までお休みしています。</p>
+      ) : t.shops.length === 0 ? (
+        <p className="mt-1 text-xs text-ink-soft">近くに Tripadvisor に載っているレストランが見つかりませんでした。</p>
+      ) : (
+        <>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">観光客・訪日客の評価が多いサイトです。近くで見つかった {t.found} 軒のうち、近い順に {t.shops.length} 軒を表示しています。</p>
+          <ul className="mt-2 space-y-2">
+            {t.shops.map((s, i) => (
+              <li key={i} className="text-xs leading-relaxed">
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noreferrer" className="font-bold underline">
+                    {s.name}
+                  </a>
+                ) : (
+                  <b>{s.name}</b>
+                )}
+                <br />
+                {s.ratingImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.ratingImage} alt={`Tripadvisor の評価 ${s.rating ?? ""}`} className="mr-1 inline h-4 align-middle" />
+                ) : (
+                  <span className="mr-1">評価 {s.rating ?? "なし"}</span>
+                )}
+                <span className="text-ink-soft">
+                  口コミ{s.reviews}件{s.price ? `・${s.price}` : ""}
+                  {s.distanceM !== null ? `・約${s.distanceM}m` : ""}
+                  {s.cuisines.length ? `・${s.cuisines.join("／")}` : ""}
+                </span>
+                {s.ranking && <span className="block text-[10px] text-ink-soft">{s.ranking}</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="mt-2 text-[10px] text-ink-soft">
+        評価と口コミ：
+        <a href="https://www.tripadvisor.jp/" target="_blank" rel="noreferrer" className="underline">
+          Tripadvisor
+        </a>
+        （その場で取得し、保存していません。今月 {t.usage.used}／{t.usage.limit}回）
+      </p>
     </Card>
   );
 }

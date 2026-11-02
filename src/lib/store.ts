@@ -98,6 +98,8 @@ interface DB {
   diagnoses: Record<string, { uid: string; input: { name: string; address: string; genre: string }; result: unknown; createdAt: string }>;
   /** 外部リンク（飲み屋街の「お店を探す」など）の踏み込み数。「日付 → 種類|街|飲み屋街」ごと */
   outbound: Record<string, Record<string, { clicks: number; users: string[] }>>;
+  /** 無料枠の中で使うための、外部APIの月ごとの呼び出し回数（例：「tripadvisor:2026-11」→ 回数）。中身は保存しない */
+  apiUsage: Record<string, number>;
   /** 外部APIの結果のキャッシュ（YouTube・ホットペッパー・e-Stat） */
   sourceCache: Record<string, { data: unknown; fetchedAt: string }>;
   /** /admin で編集したときだけ入る。空ならファイル（data/teachings.md, data/area-notes/*.md）を使う */
@@ -106,7 +108,7 @@ interface DB {
   areaNotes: Record<string, string>;
 }
 
-const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, exerciseUsage: {}, questions: {}, diagnoses: {}, outbound: {}, sourceCache: {}, teachings: "", areaNotes: {} };
+const EMPTY: DB = { posts: [], trends: {}, trendNotes: [], lectures: {}, nightlife: {}, exerciseUsage: {}, questions: {}, diagnoses: {}, outbound: {}, apiUsage: {}, sourceCache: {}, teachings: "", areaNotes: {} };
 
 let queue: Promise<unknown> = Promise.resolve();
 

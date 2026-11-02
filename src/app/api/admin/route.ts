@@ -4,6 +4,7 @@ import { adminAuthorized as authorized, adminDenied } from "@/lib/admin";
 import { estatEnabled } from "@/lib/sources/estat";
 import { naverEnabled } from "@/lib/sources/naver";
 import { placesEnabled } from "@/lib/sources/places";
+import { tripadvisorEnabled } from "@/lib/sources/tripadvisor";
 import { hotpepperEnabled } from "@/lib/sources/hotpepper";
 import { youtubeEnabled } from "@/lib/sources/youtube";
 import { envFileProblem } from "@/lib/envcheck";
@@ -40,6 +41,7 @@ export async function GET(req: Request) {
       estat: estatEnabled(),
       places: placesEnabled(),
       naver: naverEnabled(),
+      tripadvisor: tripadvisorEnabled(),
     },
     stats: { posts: db.posts.length, lectures: Object.keys(db.lectures).length },
     model: MODEL,
