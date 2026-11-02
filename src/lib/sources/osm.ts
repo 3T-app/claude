@@ -190,6 +190,43 @@ out tags 300;`);
   });
 }
 
+export interface Station {
+  name: string;
+  lat: number;
+  lng: number;
+  /** 鉄道会社（わかるとき） */
+  operator: string;
+}
+
+/** 駅（OpenStreetMap の railway=station）。同じ名前の駅は鉄道会社ごとにまとめて返す。30日キャッシュ */
+export async function stationsAround(lat: number, lng: number, radius = 1000): Promise<Station[]> {
+  if (process.env.OSM_DISABLED === "1") return [];
+  return cached(`osm-stations:${lat.toFixed(4)},${lng.toFixed(4)}:${radius}`, 30 * DAY, async () => {
+    const a = `(around:${radius},${lat},${lng})`;
+    const json = await overpass(`[out:json][timeout:30];
+(
+  node${a}[railway=station];
+  way${a}[railway=station];
+);
+out center tags 100;`);
+    const seen = new Set<string>();
+    const stations: Station[] = [];
+    for (const e of json.elements) {
+      const t = e.tags ?? {};
+      const la = e.lat ?? e.center?.lat;
+      const lo = e.lon ?? e.center?.lon;
+      const name = t["name:ja"] ?? t.name;
+      if (la === undefined || lo === undefined || !name) continue;
+      const operator = t.operator ?? "";
+      const key = `${name}|${operator}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      stations.push({ name, lat: la, lng: lo, operator });
+    }
+    return stations;
+  });
+}
+
 /** 飲み屋街の分析に使う店（バー・パブ・居酒屋・ナイトクラブ・カラオケ・夜の店） */
 export function nightPois(pois: Poi[]): Poi[] {
   return pois.filter(

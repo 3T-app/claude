@@ -276,6 +276,8 @@ function Report({ result, name }: { result: SavedDiagnosis; name: string }) {
           </ul>
         </Card>
 
+        {result.footfall && <FootfallCard f={result.footfall} />}
+
         <LocalDataCard result={result} />
 
         {(result.community?.length ?? 0) > 0 && (
@@ -582,6 +584,58 @@ function TrendCard({ bundle, genre, trendFit }: { bundle: DiagnosisResult["trend
           </ul>
         )}
       </details>
+    </Card>
+  );
+}
+
+/** 集客基盤の集計：店の住所から、まわりの駅の出口までの距離と、出口から先の人の流れ */
+function FootfallCard({ f }: { f: NonNullable<DiagnosisResult["footfall"]> }) {
+  return (
+    <Card>
+      <h3 className="text-sm font-black text-accent">🚉 集客基盤の集計（駅の出口から）</h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+        飲み屋街の分析と同じように、店のまわりの駅の出口をすべて読み取り、店の住所から一番近い出口までの距離と、その出口から先の人の流れで目安を出しています。
+      </p>
+      <p className="mt-2 text-sm">
+        目安：<b className="text-lg">{f.score}</b> / 5
+      </p>
+      <ul className="mt-1 space-y-1 text-xs leading-relaxed">
+        {f.breakdown.map((b, i) => (
+          <li key={i}>・{b}</li>
+        ))}
+      </ul>
+      {f.exits.length > 0 && (
+        <table className="mt-2 w-full text-left text-[11px]">
+          <thead>
+            <tr className="text-ink-soft">
+              <th className="py-0.5 font-bold">出口</th>
+              <th className="py-0.5 font-bold">距離</th>
+              <th className="py-0.5 font-bold">徒歩</th>
+            </tr>
+          </thead>
+          <tbody>
+            {f.exits.slice(0, 6).map((e, i) => (
+              <tr key={i} className="border-t border-line align-top">
+                <td className="py-1 pr-2">
+                  {e.name}
+                  {e.approx && <span className="text-ink-soft">（位置はおおよそ）</span>}
+                  {e.flow && <span className="block text-ink-soft">{e.flow}</span>}
+                </td>
+                <td className="py-1 pr-2 whitespace-nowrap">約{e.distanceM}m</td>
+                <td className="py-1 whitespace-nowrap">約{e.walkMin}分</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="mt-2 text-[11px] text-ink-soft">
+        {f.stations.length ? `1km以内の駅：${f.stations.map((s) => `${s.name}（約${s.distanceM}m）`).join("、")}` : "1km以内の駅：見つかりませんでした"}
+        ／出口の数：300m以内 {f.counts.m300}・500m以内 {f.counts.m500}・800m以内 {f.counts.m800}
+      </p>
+      <p className="mt-1 text-[10px] text-ink-soft">
+        {f.source === "osm" ? "出口と駅の位置：© OpenStreetMap contributors" : f.source === "analysis" ? "出口の位置：飲み屋街の分析（方角からのおおよその位置）" : ""}
+        　徒歩の分数は、直線距離×1.25を分速80mで割った目安です。
+      </p>
     </Card>
   );
 }

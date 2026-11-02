@@ -32,7 +32,7 @@ async function safe<T>(label: string, p: Promise<T>, ms = 0): Promise<T | null> 
 }
 
 /** 方角から、駅の中心から約150m先のおおよその位置 */
-function offset(center: { lat: number; lng: number }, dir: (typeof DIRECTIONS)[number]): LatLng {
+export function offset(center: { lat: number; lng: number }, dir: (typeof DIRECTIONS)[number]): LatLng {
   const deg = (DIRECTIONS.indexOf(dir) * 45 * Math.PI) / 180;
   const m = 150;
   return [
@@ -42,7 +42,7 @@ function offset(center: { lat: number; lng: number }, dir: (typeof DIRECTIONS)[n
 }
 
 /** 出口の名前を OpenStreetMap の出口とつき合わせる（「東口」と「JR東口」など） */
-function matchExit(name: string, osm: StationExit[]): StationExit | undefined {
+export function matchExit(name: string, osm: StationExit[]): StationExit | undefined {
   const norm = (s: string) => s.replace(/\s|（.*?）|\(.*?\)|出口|改札/g, "");
   const n = norm(name);
   if (!n) return undefined;

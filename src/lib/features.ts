@@ -7,6 +7,7 @@ import { AREAS, distanceM, getArea, nearestAreas, type Area } from "./areas";
 import { askJSON, askText, askWithWebSearch, isDemoMode, AIError } from "./claude";
 import { demoChat, demoDiagnosis, demoInsight, demoLecture, demoTrend } from "./demo";
 import { geocode, type GeoPoint } from "./geocode";
+import { footfallBase, formatFootfall, type FootfallBase } from "./footfall";
 import { nightlifeContext } from "./nightlife";
 import { postPlaceName } from "./posts";
 import { baseSystem, findInsights, formatInsights, getAreaNote } from "./knowledge";
@@ -459,9 +460,25 @@ export interface DiagnosisResult {
   areaMap: { areaName: string; zones: { name: string; polygon: LatLng[] | null; circle: { lat: number; lng: number; radiusM: number } }[] } | null;
   relationLines: LatLng[][];
   areaNews: AreaNewsItem[];
+  /** 集客基盤の集計：店の住所から駅の出口までの距離と、出口から先の人の流れ */
+  footfall?: FootfallBase | null;
   /** みんなの投稿（全国）で見つかった、この業態がかかわる補完の組み合わせと、店の近くの気づき */
   community?: { place: string; summary: string; relation: string; pair: string[]; reactions: number; near: boolean }[];
   demo: boolean;
+}
+
+/**
+ * 集客基盤の点数を、駅の出口からの集計にそろえる。
+ * AIの点数は集計の目安から±1点まで（オフィス・住宅・観光地などの事情はAIが加味してよい）。デモ表示では集計の点数をそのまま使う
+ */
+function applyFootfall(scores: Diagnosis["scores"], f: FootfallBase, demo: boolean): Diagnosis["scores"] {
+  return scores.map((s) => {
+    if (s.indicator !== "集客基盤") return s;
+    const score = demo ? f.score : Math.min(f.score + 1, Math.max(f.score - 1, s.score));
+    const near = f.nearest ? `一番近い出口「${f.nearest.name}」まで約${f.nearest.distanceM}m（徒歩約${f.nearest.walkMin}分）。` : "";
+    const reason = demo ? `${near}${f.breakdown.slice(1).join("。")}`.trim() || f.breakdown.join("。") : s.reason.includes("出口") ? s.reason : `${near}${s.reason}`;
+    return { ...s, score, reason };
+  });
 }
 
 /** 業態の名前を、投稿を探す言葉に分ける（例：カフェ・喫茶 → カフェ、喫茶） */
@@ -494,13 +511,14 @@ export async function diagnose(input: { name: string; address: string; genre: st
 
   // 外部データはAPIキーがあればデモ表示でも取得する（つながっているかを画面で確かめられるように）
   const homeArea = nearby[0] && nearby[0].distance < 2000 ? nearby[0].area : null;
-  const [trend, comp, city, pois, lectureCache, areaNews] = await Promise.all([
+  const [trend, comp, city, pois, lectureCache, areaNews, footfall] = await Promise.all([
     getTrendBundle(input.genre),
     point ? safe("hotpepper", competition(point.lat, point.lng, input.genre)) : Promise.resolve(null),
     safe("estat", cityStats(point?.label, input.address)),
     point ? safe("osm", poisAround(point.lat, point.lng, 400)) : Promise.resolve(null),
     homeArea ? cachedLecture(homeArea.id) : Promise.resolve(null),
     homeArea ? readAreaNews(homeArea.id, 6) : Promise.resolve([]),
+    point ? safe("footfall", footfallBase(point)) : Promise.resolve(null),
   ]);
   // 近くの街の講義がまだなければ、次回のために裏で作っておく（待たない）
   if (homeArea && !lectureCache && !isDemoMode()) void getLecture(homeArea.id).catch(() => undefined);
@@ -515,8 +533,11 @@ export async function diagnose(input: { name: string; address: string; genre: st
   const zoneHere = point && areaMap ? locateZone([point.lat, point.lng], areaMap.zones) : null;
 
   if (isDemoMode()) {
+    const demo = demoDiagnosis(input.name, input.address, input.genre);
+    if (footfall) demo.scores = applyFootfall(demo.scores, footfall, true);
     return {
-      diagnosis: demoDiagnosis(input.name, input.address, input.genre),
+      diagnosis: demo,
+      footfall,
       point,
       nearby: nearbyInfo,
       trend,
@@ -551,6 +572,9 @@ export async function diagnose(input: { name: string; address: string; genre: st
           .map(({ area, distance }) => `- ${area.name}（約${Math.round(distance)}m）：${area.hints.join(" / ")}`)
           .join("\n")}`
       : "",
+    footfall
+      ? `<集客基盤の集計（店の住所から、まわりの駅の出口をすべて読み取って測ったもの）>\n${formatFootfall(footfall)}\n</集客基盤の集計>`
+      : "",
     `<周辺のみんなの投稿>\n${formatInsights(local)}\n</周辺のみんなの投稿>`,
     `<接続性について集まった気づき（他の街も含む）>\n${formatInsights(connectionCases)}\n</接続性について集まった気づき>`,
     complements.length
@@ -582,6 +606,9 @@ export async function diagnose(input: { name: string; address: string; genre: st
     "",
     `評価軸は必ず ${INDICATORS.join("・")} の5つをこの順で出してください。`,
     "3を「平均的」とし、根拠が乏しい場合は3に寄せ、その旨を caveats に書いてください。",
+    footfall
+      ? `集客基盤は、上の「集客基盤の集計」の目安（${footfall.score}点）を基準にしてください。オフィス・住宅・学校・観光地などで上下させるときも±1点までにし、reason には一番近い出口の名前・距離・徒歩の分数と、その出口から先の人の流れを必ず書いてください。`
+      : "",
     "数字のデータ（同業の軒数、一人暮らしの割合、昼夜間人口比など）がある軸は、その数字を reason に必ず引用してください。データがない軸は推定であることを書いてください。",
     "trendFit とバズるメニューは、流行メモ・ニュース・海外の話題・YouTube・Web記事のどれに基づくかが分かるように書いてください。",
     "海外の話題は、日本にまだ広まっていない「先取り」のメニュー案や、訪日客を呼び込む工夫として使ってください。",
@@ -605,6 +632,8 @@ export async function diagnose(input: { name: string; address: string; genre: st
   diagnosis.scores = INDICATORS.map(
     (ind) => diagnosis.scores.find((s) => s.indicator === ind) ?? { indicator: ind, score: 3, reason: "評価できませんでした", advice: "" },
   );
+  // 集客基盤は、駅の出口からの集計の目安から±1点の範囲にそろえる
+  if (footfall) diagnosis.scores = applyFootfall(diagnosis.scores, footfall, false);
   const byId = new Map((pois ?? []).map((p) => [p.id, p]));
   const relationLines = diagnosis.relations.map((r) =>
     [[point?.lat ?? 0, point?.lng ?? 0] as LatLng].concat(
@@ -621,6 +650,7 @@ export async function diagnose(input: { name: string; address: string; genre: st
     areaMap,
     relationLines: point ? relationLines : [],
     areaNews,
+    footfall,
     community,
     demo: false,
   };
