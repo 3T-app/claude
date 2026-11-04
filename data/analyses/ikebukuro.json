@@ -425,7 +425,12 @@
     ],
     "hopping": "東口のサンシャイン60通りで焼肉、東口の小さな路地で二軒目。本場の中華で締めるなら北口へ。西口の繁華街は、料金の分かる店だけにする。"
   },
-  "updates": [],
+  "updates": [
+    {
+      "date": "2026-11-05",
+      "text": "池袋PARCOの約80区画の大規模リニューアルがこの秋に仕上がり、10月に日本初の常設のスター・ウォーズ公式店（1日）とウルトラマンストア（9日）が開業した。春のCAPCOM STORE・JUMP SHOPに続くキャラクターの店の集まりで、アニメ・ホビーの商圏が東口の駅前のファッションビルの中にも広がっている。"
+    }
+  ],
   "sources": [
     {
       "title": "ヨドバシカメラ マルチメディア池袋 6月30日オープン（TechnoEdge）",
@@ -450,6 +455,10 @@
     {
       "title": "池袋駅西口地区のまちづくり（豊島区）",
       "url": "https://www.city.toshima.lg.jp/295/kuse/shingi/kaigichiran/006502/documents/westentrance.pdf"
+    },
+    {
+      "title": "池袋PARCO 大規模リニューアルが今秋フィナーレ（Time Out Tokyo）",
+      "url": "https://www.timeout.jp/tokyo/ja/news/ikebukuro-parco-renewal-2026-090226"
     }
   ],
   "analyzedAt": "2026-10-30T07:00:00.000Z",
