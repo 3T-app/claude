@@ -1,7 +1,16 @@
 {
   "areaId": "ginza",
-  "updatedAt": "2026-11-05T21:55:00.000Z",
+  "updatedAt": "2026-11-07T21:58:00.000Z",
   "items": [
+    {
+      "date": "2026-12-02",
+      "kind": "開業",
+      "title": "PRONTOの1号店を全面改装、新業態「PRONTO THE FIRST」が銀座並木通りに12月2日開業予定",
+      "url": "https://adv.tokyo-np.co.jp/prtimes/article90054/",
+      "source": "東京新聞デジタル（PR TIMES）",
+      "summary": "昼はカフェ、夜はバーの「プロント」の第1号店（銀座並木通り）を全面改装し、新業態「PRONTO THE FIRST」として12月2日にオープンする予定。",
+      "impact": "昼と夜で顔を変える二毛作の店の原点が、高級店の並ぶ並木通りで新しい形に。銀座の昼のワーカーと夜の客を一つの店で受け止める使い方の見本になる。"
+    },
     {
       "date": "2026-11-06",
       "kind": "開業",
