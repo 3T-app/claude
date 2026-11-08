@@ -1,7 +1,25 @@
 {
   "areaId": "toyosu",
-  "updatedAt": "2026-11-06T21:58:00.000Z",
+  "updatedAt": "2026-11-08T22:05:00.000Z",
   "items": [
+    {
+      "date": "2026-11-15",
+      "kind": "閉店",
+      "title": "「キラナガーデン豊洲」が11月15日から一時休業、2027年春にリニューアル予定",
+      "url": "https://prtimes.jp/main/html/rd/p/000000076.000110586.html",
+      "source": "PR TIMES",
+      "summary": "延べ50万人以上が利用した豊洲のBBQ施設「キラナガーデン豊洲」が、大規模リニューアルのため11月15日で一時休業し、2027年春の再開を予定している。休業前の10月16日〜11月15日に感謝フェアを開く。",
+      "impact": "WILD MAGICの閉店と重なり、この冬の豊洲の湾岸は屋外の行楽施設が手薄になる。"
+    },
+    {
+      "date": "2026-11-03",
+      "kind": "閉店",
+      "title": "BBQ施設「WILD MAGIC」と「THE BBQ BEACH」が閉店、跡地は2027年夏に「FLAMMA」へ",
+      "url": "https://toyosu.tokyo/open-close/wild-magic-and-the-bbq-beach-close-flamma-open/",
+      "source": "豊洲ドットトーキョー",
+      "summary": "豊洲の屋外BBQ施設「WILD MAGIC -The Rainbow Farm-」と隣の「THE BBQ BEACH in TOYOSU」が11月3日で営業を終えた。跡地には2027年夏、リゾート施設「FLAMMA」が開業する予定。",
+      "impact": "湾岸の空き地を使った手ごろなBBQの行楽が一度途切れ、2027年に高級リゾート型へ入れ替わる。休日のグループ客の客層と予算が変わる。"
+    },
     {
       "date": "2026-10-16",
       "kind": "イベント",
