@@ -1,6 +1,29 @@
 {
-  "updatedAt": "2026-11-12T22:00:00.000Z",
+  "updatedAt": "2026-11-13T22:05:00.000Z",
   "items": [
+    {
+      "date": "2026-11-12",
+      "kind": "海外の流行",
+      "region": "イギリス",
+      "genre": "スイーツ・ベーカリー",
+      "title": "英マークス&スペンサーのチョコ・コーンフレーク・クッキーに1時間待ちの行列",
+      "url": "https://ladbible.com/lifestyle/m-and-s-cookies-chocolate-cornflake-customers-fighting-509953-20261112",
+      "source": "LADbible",
+      "summary": "英国のスーパー、マークス&スペンサーが11月初めに出したチョコレート・コーンフレーク・クッキーがSNSで広がり、1時間以上並ぶ客や売り場に人が押し寄せる動画が出回っている。",
+      "whyTokyo": "スーパーやコンビニの身近な菓子でも、SNSの動画ひとつで行列ができる。限定の焼き菓子は、日本のコンビニやベーカリーでも同じ広がり方をしやすい。"
+    },
+    {
+      "date": "2026-11-06",
+      "kind": "日本上陸",
+      "region": "韓国",
+      "genre": "アジア・エスニック",
+      "title": "韓国の外食チェーンが海外出店を加速、東京・東上野に韓国料理店「Seoul Bros.」",
+      "url": "https://en.sedaily.com/finance/2026/11/06/korean-restaurant-brands-push-into-tokyo-and-texas",
+      "source": "Seoul Economic Daily",
+      "summary": "韓国の外食ブランドの海外店舗は昨年4,644店で、2020年の3,722店から24.8%増えた。Standard Bridge Japan は東京・東上野に、テイクアウトと宅配もする韓国料理店「Seoul Bros.」を開く。",
+      "whyTokyo": "韓国料理は新大久保だけでなく、上野の東側のような住宅とオフィスの混じる街にも広がり始めている。",
+      "areaId": "ueno"
+    },
     {
       "date": "2026-11-04",
       "kind": "訪日客の流行",

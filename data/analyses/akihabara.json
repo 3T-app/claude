@@ -340,7 +340,12 @@
     ],
     "hopping": "万世橋の再生施設でクラフトビールから始め、高架下の大衆酒場で二軒目。コンカフェに行くなら料金を確かめてから。"
   },
-  "updates": [],
+  "updates": [
+    {
+      "date": "2026-11-14",
+      "text": "駅前の秋葉原UDXで、1月に営業を終えた「AKIBA_ICHI」の区画が「UDX DINING&SHOP」（飲食など27店）として12月10日に開く。オフィスビルの低層に食事の場が戻り、電気街の買い物客とUDXで働く人の昼と夜の受け皿が約11か月ぶりにそろう。"
+    }
+  ],
   "sources": [
     {
       "title": "秋葉原の電気街（東洋経済オンライン）",
@@ -349,6 +354,10 @@
     {
       "title": "外神田一丁目の再開発（健美家）",
       "url": "https://www.kenbiya.com/ar/ns/region/tokyo/7409.html"
+    },
+    {
+      "title": "秋葉原UDX、12月にリニューアルオープン（Impress Watch）",
+      "url": "https://www.watch.impress.co.jp/docs/news/2155205.html"
     }
   ],
   "analyzedAt": "2026-10-30T03:00:00.000Z"
