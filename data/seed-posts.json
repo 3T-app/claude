@@ -1,0 +1,235 @@
+[
+  {
+    "id": "seed-1",
+    "uid": "seed",
+    "nickname": "ふくろう散歩",
+    "areaId": "ikebukuro",
+    "comment": "東口の西武から出てきた家族連れが、そのまま地下で東武方面へ流れていく。百貨店が逆向きに配置されていても、地下通路で両方が客を分け合ってる。",
+    "image": null,
+    "createdAt": "2026-10-20T10:00:00.000Z",
+    "reactions": {
+      "naruhodo": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2"
+      ],
+      "kizuki": [
+        "seed-user-0",
+        "seed-user-1"
+      ],
+      "ikitai": [],
+      "umasou": []
+    },
+    "insight": {
+      "indicator": "接続性",
+      "summary": "地下通路が東口と西口の百貨店をつなぎ、片方に来た客がもう片方にも回遊している",
+      "mechanism": "駅をまたぐ地下動線があるため、2つの百貨店が競合しつつ互いの来店を増やしている",
+      "tags": [
+        "地下通路",
+        "百貨店",
+        "回遊"
+      ],
+      "quality": 4,
+      "relation": "補完（はしご）",
+      "pair": [
+        "百貨店",
+        "百貨店"
+      ]
+    }
+  },
+  {
+    "id": "seed-2",
+    "uid": "seed",
+    "nickname": "豆と散歩",
+    "areaId": "kiyosumi",
+    "comment": "清澄白河のロースター、天井が高い倉庫の店ばかり。美術館帰りの人がコーヒー片手に歩いてて、休日は街全体がカフェのはしご会場。",
+    "image": null,
+    "createdAt": "2026-10-21T11:00:00.000Z",
+    "reactions": {
+      "naruhodo": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2",
+        "seed-user-3",
+        "seed-user-4"
+      ],
+      "kizuki": [],
+      "ikitai": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2",
+        "seed-user-3"
+      ],
+      "umasou": []
+    },
+    "insight": {
+      "indicator": "競合性",
+      "summary": "コーヒー店が集積して「コーヒーの街」として選ばれ、1軒ずつより街全体で集客している",
+      "mechanism": "同業の集積が目的地としての力を生み、美術館という昼の集客装置と組み合わさっている",
+      "tags": [
+        "コーヒー",
+        "集積",
+        "美術館"
+      ],
+      "quality": 5,
+      "relation": "集積",
+      "pair": [
+        "コーヒー店",
+        "美術館"
+      ]
+    }
+  },
+  {
+    "id": "seed-3",
+    "uid": "seed",
+    "nickname": "ガード下研究会",
+    "areaId": "shimbashi",
+    "comment": "新橋のガード下、18時を過ぎると立ち飲みが一気に埋まる。昼は定食屋の看板だった店が夜はせんべろセットに切り替えてた。",
+    "image": null,
+    "createdAt": "2026-10-22T12:00:00.000Z",
+    "reactions": {
+      "naruhodo": [],
+      "kizuki": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2",
+        "seed-user-3"
+      ],
+      "ikitai": [],
+      "umasou": [
+        "seed-user-0",
+        "seed-user-1"
+      ]
+    },
+    "insight": {
+      "indicator": "消費サイクル",
+      "summary": "同じ店が昼は定食、夜は立ち飲みと業態を切り替え、時間帯ごとの客層に合わせている",
+      "mechanism": "オフィス街は昼と夜で需要が入れ替わるため、二毛作で一日中売上を取れる",
+      "tags": [
+        "二毛作",
+        "ガード下",
+        "サラリーマン"
+      ],
+      "quality": 4,
+      "relation": "補完（呼び込み・時間帯）",
+      "pair": [
+        "定食屋",
+        "立ち飲み"
+      ]
+    }
+  },
+  {
+    "id": "seed-4",
+    "uid": "seed",
+    "nickname": "スイーツ巡礼",
+    "areaId": "jiyugaoka",
+    "comment": "自由が丘、ボリュームあるパスタ屋の2軒隣にジェラート屋。パスタ屋から出てきたカップルがそのまま並んでた。",
+    "image": null,
+    "createdAt": "2026-10-23T13:00:00.000Z",
+    "reactions": {
+      "naruhodo": [],
+      "kizuki": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2",
+        "seed-user-3",
+        "seed-user-4",
+        "seed-user-5"
+      ],
+      "ikitai": [],
+      "umasou": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2"
+      ]
+    },
+    "insight": {
+      "indicator": "接続性",
+      "summary": "がっつり系の食事の店のすぐ近くにデザートの店があり、食後の「ついで」来店が生まれている",
+      "mechanism": "食事とデザートで客を奪い合わず、順番に使われる補完関係になっている",
+      "tags": [
+        "食後デザート",
+        "補完関係",
+        "カップル"
+      ],
+      "quality": 5,
+      "relation": "補完（はしご）",
+      "pair": [
+        "パスタ店",
+        "ジェラート店"
+      ]
+    }
+  },
+  {
+    "id": "seed-5",
+    "uid": "seed",
+    "nickname": "千住っ子",
+    "areaId": "kitasenju",
+    "comment": "北千住の総菜屋、学生向けに唐揚げ1個から買えるようにしてた。夕方は大学帰りの子と一人暮らしの社会人で行列。",
+    "image": null,
+    "createdAt": "2026-10-24T14:00:00.000Z",
+    "reactions": {
+      "naruhodo": [
+        "seed-user-0",
+        "seed-user-1"
+      ],
+      "kizuki": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2"
+      ],
+      "ikitai": [],
+      "umasou": []
+    },
+    "insight": {
+      "indicator": "客層の多様性",
+      "summary": "学生と単身世帯が多い街に合わせ、総菜を1個から買える小分け販売にしている",
+      "mechanism": "客のニーズ（少量・安価）に合わせた品出しが、単身客のリピートを生んでいる",
+      "tags": [
+        "小分け",
+        "単身世帯",
+        "学生"
+      ],
+      "quality": 4,
+      "relation": "その他",
+      "pair": []
+    }
+  },
+  {
+    "id": "seed-6",
+    "uid": "seed",
+    "nickname": "下町さんぽ",
+    "areaId": "asakusa",
+    "comment": "仲見世、片手で持てるものばかり売れてる。メロンパンもいちご飴も紙袋1つで歩きながら食べられる形。",
+    "image": null,
+    "createdAt": "2026-10-25T15:00:00.000Z",
+    "reactions": {
+      "naruhodo": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2"
+      ],
+      "kizuki": [],
+      "ikitai": [],
+      "umasou": [
+        "seed-user-0",
+        "seed-user-1",
+        "seed-user-2",
+        "seed-user-3"
+      ]
+    },
+    "insight": {
+      "indicator": "客層の多様性",
+      "summary": "食べ歩きの訪日客に合わせ、片手で持てる商品形状に寄せている",
+      "mechanism": "参拝しながら歩く動線上では、座らずに食べられる形が購入のハードルを下げる",
+      "tags": [
+        "食べ歩き",
+        "インバウンド",
+        "商品形状"
+      ],
+      "quality": 4,
+      "relation": "その他",
+      "pair": []
+    }
+  }
+]
