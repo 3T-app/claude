@@ -321,11 +321,20 @@
     ],
     "hopping": "大久保通りの屋台風居酒屋で韓国焼酎、職安通りの焼肉で食事。違う国の味が欲しければ駅の西側へ。"
   },
-  "updates": [],
+  "updates": [
+    {
+      "date": "2026-11-15",
+      "text": "10月28日、百人町に179室のホテル兼サービスレジデンス「シタディーンノース新宿東京」が開業した。新大久保に、泊まる訪日客と長期滞在者が加わり、朝と夜の食事の客が増える。"
+    }
+  ],
   "sources": [
     {
       "title": "新大久保の混雑対策（新宿区）",
       "url": "https://www.city.shinjuku.lg.jp/kusei/okubo01_000001_00006.html"
+    },
+    {
+      "title": "シタディーンノース新宿東京 開業（MICE TIMES ONLINE）",
+      "url": "https://micetimes.jp/citadines-tokyo-shinjuku-open/"
     }
   ],
   "analyzedAt": "2026-10-30T03:00:00.000Z"
