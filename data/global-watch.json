@@ -1,0 +1,169 @@
+{
+  "note": "Naver の検索トレンド（韓国）で毎週の伸びを見る言葉。業態ごとに最大5グループ（1グループに言い方のちがいを並べる）。毎朝のニュース巡回で、韓国で話題になった食べ物を見つけたら足してよい。",
+  "updatedAt": "2026-11-02",
+  "genres": {
+    "スイーツ・ベーカリー": [
+      {
+        "groupName": "ドバイもちもちクッキー",
+        "keywords": [
+          "두바이 쫀득쿠키",
+          "두쫀쿠"
+        ]
+      },
+      {
+        "groupName": "バター餅",
+        "keywords": [
+          "버터떡"
+        ]
+      },
+      {
+        "groupName": "ヨーグルトアイス",
+        "keywords": [
+          "요거트 아이스크림",
+          "요아정"
+        ]
+      },
+      {
+        "groupName": "ヤックァ",
+        "keywords": [
+          "약과"
+        ]
+      },
+      {
+        "groupName": "ピザ蒸し餅",
+        "keywords": [
+          "피자설기",
+          "피자 설기"
+        ]
+      }
+    ],
+    "カフェ・喫茶": [
+      {
+        "groupName": "抹茶",
+        "keywords": [
+          "말차",
+          "말차 라떼"
+        ]
+      },
+      {
+        "groupName": "塩パン",
+        "keywords": [
+          "소금빵"
+        ]
+      },
+      {
+        "groupName": "ベーグル",
+        "keywords": [
+          "베이글"
+        ]
+      },
+      {
+        "groupName": "クロッフル",
+        "keywords": [
+          "크로플"
+        ]
+      }
+    ],
+    "ラーメン・つけ麺": [
+      {
+        "groupName": "ラーメン",
+        "keywords": [
+          "라멘"
+        ]
+      },
+      {
+        "groupName": "マーラータン",
+        "keywords": [
+          "마라탕"
+        ]
+      },
+      {
+        "groupName": "つけ麺",
+        "keywords": [
+          "츠케멘"
+        ]
+      }
+    ],
+    "居酒屋・バー": [
+      {
+        "groupName": "ハイボール",
+        "keywords": [
+          "하이볼"
+        ]
+      },
+      {
+        "groupName": "居酒屋",
+        "keywords": [
+          "이자카야"
+        ]
+      },
+      {
+        "groupName": "伝統酒",
+        "keywords": [
+          "전통주"
+        ]
+      },
+      {
+        "groupName": "ワインバー",
+        "keywords": [
+          "와인바"
+        ]
+      }
+    ],
+    "焼肉・ホルモン": [
+      {
+        "groupName": "サムギョプサル",
+        "keywords": [
+          "삼겹살"
+        ]
+      },
+      {
+        "groupName": "焼肉（日本式）",
+        "keywords": [
+          "야키니쿠"
+        ]
+      },
+      {
+        "groupName": "韓牛おまかせ",
+        "keywords": [
+          "한우 오마카세"
+        ]
+      }
+    ],
+    "寿司・和食": [
+      {
+        "groupName": "おまかせ",
+        "keywords": [
+          "오마카세"
+        ]
+      },
+      {
+        "groupName": "寿司",
+        "keywords": [
+          "스시"
+        ]
+      },
+      {
+        "groupName": "うなぎ",
+        "keywords": [
+          "장어덮밥"
+        ]
+      }
+    ],
+    "全般": [
+      {
+        "groupName": "日本旅行のグルメ",
+        "keywords": [
+          "일본 맛집",
+          "도쿄 맛집"
+        ]
+      },
+      {
+        "groupName": "コンビニスイーツ",
+        "keywords": [
+          "편의점 디저트"
+        ]
+      }
+    ]
+  }
+}
