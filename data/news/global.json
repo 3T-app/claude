@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-20T22:00:00.000Z",
+  "updatedAt": "2026-11-21T22:05:00.000Z",
   "items": [
     {
       "date": "2026-12-02",
@@ -12,6 +12,17 @@
       "summary": "フランスのスターシェフ、シリル・リニャックのパティスリーが、伊勢丹新宿店本館地下1階に厨房とイートインを備えた国内1号店を開く。同じ売場の刷新で、パリのヤン・クヴルーとメールも日本初出店する。",
       "whyTokyo": "パリの人気店の日本1号店が百貨店の地下に入り、手土産と訪日客の買い物の目的地になる。",
       "areaId": "shinjuku"
+    },
+    {
+      "date": "2026-11-21",
+      "kind": "海外の流行",
+      "region": "香港",
+      "genre": "全般",
+      "title": "香港政府観光局が「グルメ月間」、夜9時以降の店60か所超の地図を公開",
+      "url": "https://thestandard.com.hk/news/article/349219/Savoring-the-night-Hong-Kong-Gourmet-Month-shines-a-spotlight-on-vibrant-after-hours-dining-and-creative-local-flavors",
+      "source": "The Standard",
+      "summary": "香港政府観光局が「香港グルメ月間」を始め、夜9時以降に楽しめる飲食店やナイトライフの店を60か所以上載せた「After 9 Night-Time Food Map」を出した。",
+      "whyTokyo": "夜遅い時間の食べ歩きを、観光の目玉として地図にまとめて打ち出す動き。東京の飲み屋街や横丁も、夜の訪日客向けに同じ見せ方ができる。"
     },
     {
       "date": "2026-11-20",
